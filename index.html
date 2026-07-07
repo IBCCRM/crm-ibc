@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM · IBC Group</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: {
+        brand:   { 50:'#fdf2f2',100:'#fbe0e1',500:'#c02f32',600:'#b22234',700:'#8f1d2a',900:'#5e1019' },
+        ink:     { 700:'#334155',800:'#1e293b',900:'#0f172a' },
+        amber:   { 500:'#f59e0b' }
+      },
+      fontFamily: { sans:['Inter','system-ui','sans-serif'] }
+    }}
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Inter',system-ui,sans-serif;}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
+  .nav-item.active{background:#0e7490;color:#fff}
+  .nav-item.active svg{color:#fff}
+  [hidden]{display:none!important}
+  .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px}
+  .chip{font-size:11px;font-weight:600;padding:2px 10px;border-radius:9999px}
+</style>
+<style>
+  body.mod-mediplus .bg-brand-600{background-color:#1e5fa8!important}
+  body.mod-mediplus .bg-brand-700{background-color:#174a86!important}
+  body.mod-mediplus .hover\:bg-brand-700:hover{background-color:#174a86!important}
+  body.mod-mediplus .text-brand-600{color:#1e5fa8!important}
+  body.mod-mediplus .text-brand-700{color:#174a86!important}
+  body.mod-mediplus .bg-brand-100{background-color:#dbeafe!important}
+  body.mod-mediplus .text-brand-500{color:#2563eb!important}
+  body.mod-mediplus .border-brand-500{border-color:#2563eb!important}
+  body.mod-mediplus .hover\:border-brand-500:hover{border-color:#2563eb!important}
+  body.mod-mediplus .accent-brand-600{accent-color:#1e5fa8!important}
+  body.mod-mediplus .nav-item.active{background-color:#dbeafe!important;color:#174a86!important}
+</style>
+</head>
+<body class="bg-slate-100 text-ink-800">
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginView" class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div class="h-1.5 bg-brand-600"></div>
+    <div class="bg-white px-8 pt-8 pb-4 border-b border-slate-100 text-center">
+      <img id="logoLogin" alt="IBC Group" class="h-20 mx-auto object-contain">
+      <p class="text-slate-400 text-sm mt-2">CRM comercial · dispositivos médicos LATAM</p>
+    </div>
+    <div class="p-8 space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-ink-700 mb-1">Correo</label>
+        <input id="liEmail" type="email" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="tucorreo@ibcgroupsac.com">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-ink-700 mb-1">Contraseña</label>
+        <input id="liPass" type="password" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="••••••••">
+      </div>
+      <p id="liError" class="text-sm text-red-600" hidden></p>
+      <button onclick="signIn()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-2.5 transition">Entrar</button>
+      <p class="text-xs text-slate-400 text-center">Los usuarios se crean desde Supabase → Authentication.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="appView" hidden class="min-h-screen flex">
+  <!-- Sidebar -->
+  <aside class="w-60 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col fixed h-full z-20" id="sidebar">
+    <div class="px-4 py-4 border-b border-slate-100 flex items-center justify-center">
+      <img id="logoSide" alt="IBC Group" class="h-12 object-contain">
+    </div>
+    <div class="px-3 pt-3">
+      <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+        <div class="text-[10px] uppercase tracking-wide text-slate-400">Módulo</div>
+        <div class="text-sm font-bold text-ink-900" id="moduloBadge">—</div>
+        <button onclick="cambiarModulo()" class="mt-1 text-xs text-brand-600 hover:underline">Cambiar módulo</button>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto p-3 space-y-1" id="navMenu"></nav>
+    <div class="p-3 border-t border-slate-100">
+      <div class="flex items-center gap-2 px-2 py-2">
+        <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm" id="userInitial">?</div>
+        <div class="leading-tight min-w-0">
+          <div class="text-sm font-semibold truncate" id="userName">—</div>
+          <div class="text-xs text-slate-400" id="userRole">—</div>
+        </div>
+      </div>
+      <button onclick="signOut()" class="w-full mt-1 text-sm text-slate-500 hover:text-red-600 py-1.5 rounded-lg hover:bg-slate-50 transition">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 ml-60 min-h-screen flex flex-col">
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+      <h2 id="pageTitle" class="text-lg font-bold text-ink-900">Panel</h2>
+      <div class="flex items-center gap-3">
+        <button onclick="go('tareas')" title="Pendientes por vencer" class="relative p-2 rounded-lg hover:bg-slate-100">
+          <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span id="alertBadge" class="absolute -top-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center" hidden>0</span>
+        </button>
+      </div>
+    </header>
+    <section id="content" class="flex-1 p-6 overflow-y-auto"></section>
+  </main>
+</div>
+
+<!-- Modal host -->
+<div id="modalHost" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" hidden>
+  <div id="modalBox" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"></div>
+</div>
+<!-- Toast -->
+<div id="toast" class="fixed bottom-5 right-5 z-[60] space-y-2"></div>
+
+<script>
+// ============================================================
+//  CONFIGURACIÓN SUPABASE  (proyecto nuevo de IBC Group)
+// ============================================================
+const SUPABASE_URL  = "https://gqqealzjcdheyunczngm.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWVhbHpqY2RoZXl1bmN6bmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDc4ODQsImV4cCI6MjA5NzA4Mzg4NH0.kYRK53J0wetTdBMne-FB-81itfWhbIhy2kOdtNqq4so";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Logo de IBC Group (incrustado)
+const LOGO = "data:image/png;base64,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";
+(function(){ const a=document.getElementById('logoLogin'), b=document.getElementById('logoSide'); if(a)a.src=LOGO; if(b)b.src=LOGO; })();
+
+// ============================================================
+//  ESTADO + UTILIDADES
+// ============================================================
+const S = { user:null, perfil:null, route:'dashboard', modulo:null, tipoScope:null, cache:{} };
+const isAdmin = () => S.perfil?.rol === 'administrador';
+const $ = (id) => document.getElementById(id);
+const esc = (s='') => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fdate = (d) => d ? new Date(d).toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'}) : '';
+const fdt = (d) => d ? new Date(d).toLocaleString('es-PE',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+
+function toast(msg, kind='ok'){
+  const colors = {ok:'bg-emerald-600',err:'bg-red-600',info:'bg-brand-700'};
+  const el = document.createElement('div');
+  el.className = `${colors[kind]} text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg`;
+  el.textContent = msg;
+  $('toast').appendChild(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+function openModal(html){ $('modalBox').className='bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto'; $('modalBox').innerHTML = html; $('modalHost').hidden = false; }
+function setModalSize(cls){ const b=$('modalBox'); b.classList.remove('max-w-lg'); b.classList.add(cls); }
+function previewToggle(editorId, wrapId, previewId, btn){
+  const wrap=$(wrapId), prev=$(previewId);
+  if(prev.hidden){ prev.innerHTML=getHtml(editorId); prev.hidden=false; wrap.hidden=true; btn.textContent='✏️ Editar'; }
+  else { prev.hidden=true; wrap.hidden=false; btn.textContent='👁 Vista previa'; }
+}
+function closeModal(){ $('modalHost').hidden = true; $('modalBox').innerHTML=''; }
+$('modalHost').addEventListener('click', e=>{ if(e.target.id==='modalHost') closeModal(); });
+
+async function q(table){ return sb.from(table); }
+
+// ============================================================
+//  AUTENTICACIÓN
+// ============================================================
+async function signIn(){
+  $('liError').hidden = true;
+  const email = $('liEmail').value.trim(), password = $('liPass').value;
+  if(!email||!password){ showLoginError('Ingresa correo y contraseña.'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ showLoginError('No se pudo entrar. Revisa tus datos.'); return; }
+  await boot();
+}
+function showLoginError(m){ $('liError').textContent = m; $('liError').hidden = false; }
+async function signOut(){ await sb.auth.signOut(); location.reload(); }
+
+async function boot(){
+  const { data:{ user } } = await sb.auth.getUser();
+  if(!user){ $('loginView').hidden=false; $('appView').hidden=true; return; }
+  S.user = user;
+  let { data:perfil } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  if(!perfil){ // por si el trigger no corrió
+    await sb.from('perfiles').insert({ id:user.id, email:user.email, nombre:user.email });
+    perfil = { id:user.id, email:user.email, nombre:user.email, rol:'operador' };
+  }
+  S.perfil = perfil;
+  $('loginView').hidden=true; $('appView').hidden=false;
+  $('userName').textContent = perfil.nombre || perfil.email;
+  $('userRole').textContent = perfil.rol === 'administrador' ? 'Administrador' : 'Operador';
+  $('userInitial').textContent = (perfil.nombre||perfil.email||'?').charAt(0).toUpperCase();
+  showWelcome();
+}
+
+// ============================================================
+//  NAVEGACIÓN
+// ============================================================
+const NAV = [
+  { id:'dashboard',     label:'Panel',          icon:'M4 6h16M4 12h16M4 18h7' },
+  { id:'fabricantes',   label:'Fabricantes',    icon:'M3 21h18M5 21V7l7-4 7 4v14M9 9h6M9 13h6M9 17h6' },
+  { id:'distribuidores',label:'Distribuidores', icon:'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z' },
+  { id:'comunicaciones',label:'Comunicaciones', icon:'M8 10h8M8 14h5M21 12a9 9 0 11-3.6-7.2L21 3v6h-6' },
+  { id:'bandeja',       label:'Bandeja',        icon:'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6L5.5 5z' },
+  { id:'tareas',        label:'Pendientes',     icon:'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
+  { id:'campanas',      label:'Campañas',       icon:'M3 8l7.9 5.3a2 2 0 002.2 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { id:'datos',         label:'ImportYeti / Penta', icon:'M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7M4 7c0 1.1 3.6 2 8 2s8-.9 8-2M4 7c0-1.1 3.6-2 8-2s8 .9 8 2' },
+  { id:'mapa',          label:'Mapa',           icon:'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20' },
+  { id:'reports',       label:'Reports',        icon:'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.6L19 8.4V19a2 2 0 01-2 2z' },
+  { id:'config',        label:'Configuración',  icon:'M10.3 4.3a2 2 0 013.4 0l.6 1a2 2 0 002.3 1l1.1-.3a2 2 0 012.3 2.3l-.3 1.1a2 2 0 001 2.3l1 .6a2 2 0 010 3.4l-1 .6a2 2 0 00-1 2.3l.3 1.1a2 2 0 01-2.3 2.3l-1.1-.3a2 2 0 00-2.3 1l-.6 1a2 2 0 01-3.4 0l-.6-1a2 2 0 00-2.3-1l-1.1.3a2 2 0 01-2.3-2.3l.3-1.1a2 2 0 00-1-2.3l-1-.6a2 2 0 010-3.4l1-.6a2 2 0 001-2.3l-.3-1.1A2 2 0 016.9 6l1.1.3a2 2 0 002.3-1l.6-1z', admin:true }
+];
+function buildNav(){
+  const menu = (S.modulo==='mediplus') ? NAV_MED : NAV;
+  $('navMenu').innerHTML = menu.filter(n=>!n.admin||isAdmin()).map(n=>`
+    <button onclick="go('${n.id}')" data-nav="${n.id}"
+      class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-700 hover:bg-slate-100 transition">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${n.icon}"/></svg>
+      ${n.label}
+    </button>`).join('');
+  const badge=$('moduloBadge'); if(badge){ badge.textContent = S.modulo==='mediplus'?'Mediplus India LTD':'IBC Group'; }
+}
+// ---- Menú del módulo Mediplus ----
+const NAV_MED = [
+  { id:'leads',    label:'Leads',           icon:'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z' },
+  { id:'clients',  label:'Current Clients', icon:'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 7a4 4 0 108 0 4 4 0 00-8 0zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
+  { id:'campanas', label:'Campañas',        icon:'M3 8l7.9 5.3a2 2 0 002.2 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { id:'mapa',     label:'Mapa',            icon:'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20' },
+  { id:'reports',  label:'Reports',         icon:'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.6L19 8.4V19a2 2 0 01-2 2z' },
+];
+const MODMID='433ae33f-0943-46c8-b664-66bf6c096c72';
+// Aplica el filtro de módulo (Mediplus solo su fabricante; IBC todo lo demás)
+function scopeMod(query, col){ col=col||'fabricante_id'; return S.modulo==='mediplus' ? query.eq(col, MODMID) : query.neq(col, MODMID); }
+// Pantalla de bienvenida (elegir módulo)
+function showWelcome(){
+  let o=document.getElementById('welcomeView');
+  if(!o){ o=document.createElement('div'); o.id='welcomeView'; document.body.appendChild(o); }
+  o.className='fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-50';
+  o.innerHTML=`
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-extrabold text-ink-900">Bienvenido${S.perfil&&S.perfil.nombre&&!String(S.perfil.nombre).includes('@')?', '+esc(S.perfil.nombre):''} 👋</h1>
+      <p class="text-slate-500 mt-2">Elige el módulo con el que quieres trabajar</p>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-6 px-4">
+      <button onclick="pickModulo('ibc')" class="w-72 bg-white rounded-2xl border-2 border-slate-200 hover:border-brand-500 hover:shadow-lg transition p-8 text-center">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-extrabold mb-4">IBC</div>
+        <div class="text-lg font-bold text-ink-900">IBC Group</div>
+        <div class="text-sm text-slate-500 mt-1">Representante oficial de fabricantes en Latinoamérica</div>
+      </button>
+      <button onclick="pickModulo('mediplus')" class="w-72 bg-white rounded-2xl border-2 border-slate-200 hover:border-brand-500 hover:shadow-lg transition p-8 text-center">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-ink-900 flex items-center justify-center text-white text-xl font-extrabold mb-4">M</div>
+        <div class="text-lg font-bold text-ink-900">Mediplus India LTD</div>
+        <div class="text-sm text-slate-500 mt-1">Acceso vascular y catéteres IV</div>
+      </button>
+    </div>`;
+  o.hidden=false;
+}
+function pickModulo(m){
+  S.modulo=m;
+  document.body.classList.toggle('mod-mediplus', m==='mediplus');
+  const o=document.getElementById('welcomeView'); if(o) o.remove();
+  buildNav();
+  go(m==='mediplus'?'leads':'dashboard');
+  refreshAlertBadge();
+}
+function cambiarModulo(){ showWelcome(); }
+function go(route){
+  S.route = route;
+  S.tipoScope = route==='leads'?'lead':(route==='clients'?'distribuidor':null);
+  document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active', b.dataset.nav===route));
+  const titles = {dashboard:'Panel',fabricantes:'Fabricantes representados',distribuidores:'Distribuidores y leads',comunicaciones:'Comunicaciones',bandeja:'Bandeja de correo',tareas:'Pendientes',campanas:'Campañas de correo',datos:'Datos ImportYeti / Penta',mapa:'Mapa de distribuidores',config:'Configuración',leads:'Leads',clients:'Current Clients',reports:'Reports'};
+  $('pageTitle').textContent = titles[route]||'CRM';
+  $('content').innerHTML = '<div class="text-slate-400 text-sm py-10 text-center">Cargando…</div>';
+  ({dashboard:viewDashboard,fabricantes:viewFabricantes,distribuidores:viewDistribuidores,comunicaciones:viewComunicaciones,bandeja:viewBandeja,tareas:viewTareas,campanas:viewCampanas,datos:viewDatos,mapa:viewMapa,config:viewConfig,leads:viewDistribuidores,clients:viewDistribuidores,reports:viewReports}[route]||viewDashboard)();
+}
+
+// ============================================================
+//  CARGA DE CATÁLOGOS
+// ============================================================
+async function fabricantes(){
+  if(S.cache.fab) return S.cache.fab;
+  const { data } = await sb.from('fabricantes').select('*').order('nombre');
+  S.cache.fab = data||[]; return S.cache.fab;
+}
+async function identidades(){
+  const { data } = await sb.from('identidades_correo').select('*').order('nombre');
+  return data||[];
+}
+function invalidate(){ S.cache = {}; }
+// Trae TODAS las filas por páginas de 1000 (Supabase limita a 1000 por consulta)
+async function fetchAll(tabla, columnas){
+  let desde=0, paso=1000, todo=[];
+  while(true){
+    const { data, error } = await sb.from(tabla).select(columnas).range(desde, desde+paso-1);
+    if(error || !data || !data.length) break;
+    todo = todo.concat(data);
+    if(data.length < paso) break;
+    desde += paso;
+  }
+  return todo;
+}
+
+// ============================================================
+//  PANEL
+// ============================================================
+async function viewDashboard(){
+  const fab = await fabricantes();
+  let dist = await fetchAll('distribuidores','id,tipo,etapa,fabricante_id,empresa,pais,updated_at');
+  dist = dist.filter(d=> S.modulo==='mediplus' ? d.fabricante_id===MODMID : d.fabricante_id!==MODMID);
+  const { data:tareas } = await sb.from('tareas').select('id,titulo,estado,vence_el,prioridad').neq('estado','hecho').neq('estado','cancelada');
+  const { data:comu } = await sb.from('comunicaciones').select('id,tipo,asunto,fecha,distribuidor_id').order('fecha',{ascending:false}).limit(8);
+  const D = dist||[], T = tareas||[];
+  const hoy = new Date();
+  const _h=hoy.getHours();
+  const saludo=_h<12?'Buenos días':(_h<19?'Buenas tardes':'Buenas noches');
+  const nombre=(S.perfil&&S.perfil.nombre&&!String(S.perfil.nombre).includes('@'))?S.perfil.nombre:((S.user&&S.user.email)?S.user.email.split('@')[0]:'');
+  const fechaLarga=hoy.toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const vencidas = T.filter(t=>t.vence_el && new Date(t.vence_el) < hoy);
+  const _finDia=new Date(); _finDia.setHours(23,59,59,999);
+  const _7d=7*24*60*60*1000;
+  const accNuevos=D.filter(d=>d.etapa==='nuevo');
+  const accCotizados=D.filter(d=>d.etapa==='cotizado');
+  const accNegEstancados=D.filter(d=>d.etapa==='negociacion' && d.updated_at && (Date.now()-new Date(d.updated_at).getTime())>_7d);
+  const accPendHoy=T.filter(t=>t.vence_el && new Date(t.vence_el)<=_finDia);
+  const acciones=[];
+  if(accNegEstancados.length) acciones.push(['💬', accNegEstancados.length+' en negociación sin actividad (+7 días)', "go('distribuidores')"]);
+  if(accCotizados.length) acciones.push(['💰', accCotizados.length+' cotizado(s) sin respuesta / por cerrar', "go('distribuidores')"]);
+  if(accPendHoy.length) acciones.push(['⏰', accPendHoy.length+' pendiente(s) vencido(s) o de hoy', "go('tareas')"]);
+  const etapas = ['nuevo','contactado','interesado','cotizado','negociacion','cerrado_ganado','cerrado_perdido'];
+  const cont = e => D.filter(d=>d.etapa===e).length;
+  // desglose por fabricante/cartera
+  const fabName = {}; fab.forEach(f=>fabName[f.id]=f.nombre);
+  const porFab = {};
+  D.forEach(d=>{ const n = fabName[d.fabricante_id] || 'Sin asignar'; porFab[n]=(porFab[n]||0)+1; });
+  const fabRows = Object.entries(porFab).sort((a,b)=>b[1]-a[1]);
+  const maxFab = Math.max(1,...fabRows.map(r=>r[1]));
+  // desglose por país
+  const porPais = {};
+  D.forEach(d=>{ const p = (d.pais&&d.pais.trim())?d.pais.trim():'Sin país'; porPais[p]=(porPais[p]||0)+1; });
+  const paisRows = Object.entries(porPais).sort((a,b)=>b[1]-a[1]);
+  const maxPais = Math.max(1,...paisRows.map(r=>r[1]));
+  const card = (label,val,sub='',color='brand') => `
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-3xl font-extrabold text-${color}-700">${val}</div>
+      <div class="text-sm font-medium text-ink-700 mt-1">${label}</div>
+      ${sub?`<div class="text-xs text-slate-400 mt-0.5">${sub}</div>`:''}
+    </div>`;
+  $('content').innerHTML = `
+    <div class="mb-6">
+      <h2 class="text-2xl font-extrabold text-ink-900">${saludo}, ${esc(nombre)} 👋</h2>
+      <p class="text-sm text-slate-500 capitalize">${fechaLarga}</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      ${card('Fabricantes', fab.filter(f=>f.es_medico).length, fab.length+' en total')}
+      ${card('Total de leads', D.length, D.filter(d=>d.tipo==='distribuidor').length+' distribuidores')}
+      ${card('Pendientes abiertos', T.length, vencidas.length+' vencidos','amber')}
+      ${card('Cierres ganados', cont('cerrado_ganado'),'','emerald')}
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+      <h3 class="font-bold text-ink-900 mb-3">🎯 Próxima mejor acción</h3>
+      ${acciones.length?`<div class="space-y-2">${acciones.map(a=>`<button onclick="${a[2]}" class="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
+        <span class="text-lg">${a[0]}</span><span class="text-sm text-ink-800 flex-1">${a[1]}</span><span class="text-slate-300">→</span>
+      </button>`).join('')}</div>`:'<p class="text-sm text-slate-400">Todo bajo control. No hay acciones urgentes ahora mismo. 🎉</p>'}
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-ink-900">Mis pendientes (${T.length})</h3>
+        <button onclick="go('tareas')" class="text-sm text-brand-600 hover:underline">Ver todos →</button>
+      </div>
+      ${T.length?`<div class="space-y-2">${T.slice(0,6).map(t=>{const v=t.vence_el&&new Date(t.vence_el)<hoy;return `<div class="flex items-center gap-3 text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+        <div class="flex-1 min-w-0"><span class="font-medium text-ink-800">${esc(t.titulo)}</span> <span class="text-xs text-slate-400">· ${t.prioridad}${t.vence_el?' · vence '+fdate(t.vence_el):''}</span></div>
+        ${v?'<span class="chip bg-amber-500 text-white">vencido</span>':''}
+      </div>`}).join('')}</div>`:'<p class="text-sm text-slate-400">No tienes pendientes. ¡Buen trabajo!</p>'}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-ink-900 mb-4">Embudo comercial</h3>
+        <div class="space-y-2">
+          ${etapas.map(e=>{const n=cont(e);const max=Math.max(1,...etapas.map(cont));
+            return `<div class="flex items-center gap-3">
+              <div class="w-28 text-xs text-slate-500 capitalize">${e.replace('_',' ')}</div>
+              <div class="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
+                <div class="h-5 bg-brand-600 rounded-full" style="width:${n/max*100}%"></div>
+              </div>
+              <div class="w-8 text-right text-sm font-semibold">${n}</div>
+            </div>`}).join('')}
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-ink-900 mb-3">Actividad reciente</h3>
+        <div class="space-y-3">
+          ${(comu||[]).length? (comu||[]).map(c=>`
+            <div class="text-sm border-l-2 border-brand-200 pl-3">
+              <div class="font-medium text-ink-800">${esc(c.asunto||c.tipo)}</div>
+              <div class="text-xs text-slate-400">${c.tipo} · ${fdt(c.fecha)}</div>
+            </div>`).join('') : '<p class="text-sm text-slate-400">Sin actividad aún.</p>'}
+        </div>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-ink-900 mb-1">Leads por fabricante / cartera</h3>
+        <p class="text-xs text-slate-400 mb-4">${fabRows.length} carteras · ${D.length} leads en total</p>
+        <div class="space-y-2 max-h-96 overflow-auto pr-1">
+          ${fabRows.map(([n,v])=>`<div class="flex items-center gap-3">
+            <div class="w-40 text-xs text-slate-600 truncate" title="${esc(n)}">${esc(n)}</div>
+            <div class="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+              <div class="h-4 bg-brand-600 rounded-full" style="width:${v/maxFab*100}%"></div>
+            </div>
+            <div class="w-12 text-right text-sm font-semibold">${v}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-ink-900 mb-1">Leads por país</h3>
+        <p class="text-xs text-slate-400 mb-4">${paisRows.length} países</p>
+        <div class="space-y-2 max-h-96 overflow-auto pr-1">
+          ${paisRows.map(([n,v])=>`<div class="flex items-center gap-3">
+            <div class="w-40 text-xs text-slate-600 truncate" title="${esc(n)}">${esc(n)}</div>
+            <div class="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+              <div class="h-4 bg-emerald-500 rounded-full" style="width:${v/maxPais*100}%"></div>
+            </div>
+            <div class="w-12 text-right text-sm font-semibold">${v}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    ${vencidas.length?`<div class="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <h3 class="font-bold text-amber-800 mb-2">⚠ Pendientes vencidos (${vencidas.length})</h3>
+      <ul class="text-sm text-amber-900 space-y-1">${vencidas.slice(0,6).map(t=>`<li>• ${esc(t.titulo)} — venció ${fdate(t.vence_el)}</li>`).join('')}</ul>
+    </div>`:''}`;
+}
+
+// ============================================================
+//  FABRICANTES
+// ============================================================
+async function viewFabricantes(){
+  invalidate();
+  const fab = await fabricantes();
+  const idents = await identidades();
+  const dist = await fetchAll('distribuidores','fabricante_id');
+  const countBy = fid => (dist||[]).filter(d=>d.fabricante_id===fid).length;
+  const idName = id => idents.find(i=>i.id===id)?.nombre;
+  const def = idents.find(i=>i.es_predeterminada)?.nombre || 'IBC Group';
+  $('content').innerHTML = `
+    <div class="flex justify-between items-center mb-4">
+      <p class="text-sm text-slate-500">${fab.length} fabricantes representados</p>
+      ${isAdmin()?`<button onclick="editFabricante()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ Fabricante</button>`:''}
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      ${fab.map(f=>`
+        <div class="bg-white rounded-xl border border-slate-200 p-5 flex flex-col">
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-bold text-ink-900">${esc(f.nombre)}</h3>
+              <p class="text-xs text-slate-400">${esc(f.pais_origen||'—')}</p>
+            </div>
+            ${f.es_medico?'<span class="chip bg-brand-50 text-brand-700">Médico</span>':'<span class="chip bg-slate-100 text-slate-500">No médico</span>'}
+          </div>
+          <p class="text-sm text-slate-600 mt-2 flex-1 line-clamp-3">${esc(f.linea_principal||'')}</p>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+            <span class="text-xs text-slate-500">📨 ${esc(idName(f.identidad_correo_id)||def)}</span>
+            <span class="text-xs font-semibold text-brand-700">${countBy(f.id)} distrib.</span>
+          </div>
+          <div class="flex gap-2 mt-3">
+            <button onclick="go('distribuidores');setTimeout(()=>filterFab('${f.id}'),100)" class="flex-1 text-xs border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50">Ver cartera</button>
+            ${isAdmin()?`<button onclick="editFabricante('${f.id}')" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">Editar</button>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+async function editFabricante(id){
+  const fab = await fabricantes();
+  const idents = await identidades();
+  const f = id ? fab.find(x=>x.id===id) : {};
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold mb-4">${id?'Editar':'Nuevo'} fabricante</h3>
+      <div class="space-y-3">
+        ${field('Nombre','f_nom',f.nombre)}
+        ${field('País de origen','f_pais',f.pais_origen)}
+        ${textarea('Línea principal','f_linea',f.linea_principal)}
+        ${field('Web','f_web',f.web)}
+        <label class="block text-sm font-medium text-ink-700">Correo de salida (identidad)
+          <select id="f_ident" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+            <option value="">Predeterminado (IBC Group)</option>
+            ${idents.map(i=>`<option value="${i.id}" ${f.identidad_correo_id===i.id?'selected':''}>${esc(i.nombre)} · ${esc(i.email)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_med" ${f.es_medico!==false?'checked':''}> Es fabricante médico</label>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+        <button onclick="saveFabricante('${id||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+      </div>
+    </div>`);
+}
+async function saveFabricante(id){
+  const rec = {
+    nombre:$('f_nom').value.trim(), pais_origen:$('f_pais').value.trim(),
+    linea_principal:$('f_linea').value.trim(), web:$('f_web').value.trim(),
+    identidad_correo_id:$('f_ident').value||null, es_medico:$('f_med').checked
+  };
+  if(!rec.nombre){ toast('El nombre es obligatorio','err'); return; }
+  const { error } = id ? await sb.from('fabricantes').update(rec).eq('id',id)
+                       : await sb.from('fabricantes').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Fabricante guardado'); closeModal(); invalidate(); viewFabricantes();
+}
+
+// ============================================================
+//  DISTRIBUIDORES
+// ============================================================
+let DIST_FAB = '';
+function filterFab(id){ DIST_FAB=id; const s=$('d_filterFab'); if(s){s.value=id;} loadDist(); }
+async function viewDistribuidores(){
+  const fab = await fabricantes();
+  let _base = await fetchAll('distribuidores','pais,origen_detalle,fabricante_id,tipo');
+  _base = _base.filter(d=> S.modulo==='mediplus' ? d.fabricante_id===MODMID : d.fabricante_id!==MODMID);
+  if(S.tipoScope) _base = _base.filter(d=>d.tipo===S.tipoScope);
+  const _paises=[...new Set(_base.map(d=>d.pais).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const _origenes=[...new Set(_base.map(d=>d.origen_detalle).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  $('content').innerHTML = `
+    <div class="flex flex-wrap gap-2 items-center justify-between mb-4">
+      <div class="flex gap-2 flex-wrap">
+        ${S.modulo!=='mediplus'?`<select id="d_filterFab" onchange="DIST_FAB=this.value;loadDist()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los fabricantes</option>
+          ${fab.map(f=>`<option value="${f.id}">${esc(f.nombre)}</option>`).join('')}
+        </select>`:''}
+        <select id="d_filterEtapa" onchange="loadDist()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todas las etapas</option>
+          ${['nuevo','contactado','interesado','cotizado','negociacion','cerrado_ganado','cerrado_perdido'].map(e=>`<option value="${e}">${e.replace('_',' ')}</option>`).join('')}
+        </select>
+        <select id="d_filterPais" onchange="loadDist()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los países</option>
+          ${_paises.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+        </select>
+        <select id="d_filterOrigen" onchange="loadDist()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los orígenes</option>
+          ${_origenes.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+        </select>
+        <input id="d_search" oninput="loadDist()" placeholder="Buscar empresa…" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="flex gap-2">
+        <button onclick="importDist()" class="border border-slate-300 text-sm px-4 py-2 rounded-lg hover:bg-slate-50">Importar lista</button>
+        <button onclick="editDist()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ Distribuidor</button>
+      </div>
+    </div>
+    <div id="distList"></div>`;
+  if(DIST_FAB && $('d_filterFab')) $('d_filterFab').value = DIST_FAB;
+  loadDist();
+}
+async function loadDist(){
+  const fid = $('d_filterFab')?.value, et = $('d_filterEtapa')?.value, s=($('d_search')?.value||'').toLowerCase();
+  const pais = $('d_filterPais')?.value, orig = $('d_filterOrigen')?.value;
+  let query = sb.from('distribuidores').select('*, fabricantes(nombre), contactos(count)').order('updated_at',{ascending:false});
+  query = scopeMod(query);
+  if(S.tipoScope) query = query.eq('tipo', S.tipoScope);
+  if(fid) query = query.eq('fabricante_id', fid);
+  if(et) query = query.eq('etapa', et);
+  if(pais) query = query.eq('pais', pais);
+  if(orig) query = query.eq('origen_detalle', orig);
+  const { data } = await query;
+  let rows = data||[];
+  if(s) rows = rows.filter(r=>r.empresa.toLowerCase().includes(s));
+  const etapaColor = {nuevo:'slate',contactado:'blue',interesado:'cyan',cotizado:'amber',negociacion:'violet',cerrado_ganado:'emerald',cerrado_perdido:'red'};
+  $('distList').innerHTML = rows.length?`
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+          <tr><th class="text-left px-4 py-3">Empresa</th><th class="text-left px-4 py-3">Fabricante</th><th class="text-left px-4 py-3">País</th><th class="text-left px-4 py-3">Etapa</th><th class="text-left px-4 py-3">Contactos</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="distDetail('${r.id}')">
+            <td class="px-4 py-3 font-medium text-ink-900">${esc(r.empresa)}</td>
+            <td class="px-4 py-3 text-slate-500">${esc(r.fabricantes?.nombre||'')}</td>
+            <td class="px-4 py-3 text-slate-500">${esc(r.pais||'')}</td>
+            <td class="px-4 py-3"><span class="chip bg-${etapaColor[r.etapa]||'slate'}-100 text-${etapaColor[r.etapa]||'slate'}-700 capitalize">${r.etapa.replace('_',' ')}</span></td>
+            <td class="px-4 py-3 text-slate-500">${r.contactos?.[0]?.count||0}</td>
+            <td class="px-4 py-3 text-right whitespace-nowrap">${r.tipo==='lead'?`<button onclick="event.stopPropagation();evolveToClient('${r.id}')" class="text-xs bg-emerald-600 text-white rounded-lg px-2 py-1 mr-2">→ Client</button>`:''}<span class="text-brand-600 text-xs font-semibold">Abrir →</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400 text-sm">Sin distribuidores. Agrega uno o importa una lista.</div>';
+}
+async function evolveToClient(id){
+  if(!confirm('¿Convertir este lead en Current Client? Pasará a la sección de Current Clients.')) return;
+  const { error }=await sb.from('distribuidores').update({ tipo:'distribuidor' }).eq('id',id);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Lead convertido en Current Client');
+  const mh=document.getElementById('modalHost'); if(mh && mh.innerHTML.trim()) closeModal();
+  if(typeof loadDist==='function' && (S.route==='leads'||S.route==='clients'||S.route==='distribuidores')) loadDist();
+}
+async function editDist(id){
+  const fab = await fabricantes();
+  let d = {};
+  if(id){ const {data}=await sb.from('distribuidores').select('*').eq('id',id).single(); d=data||{}; }
+  const opt = (arr,val)=>arr.map(x=>`<option value="${x}" ${val===x?'selected':''}>${x.replace('_',' ')}</option>`).join('');
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold mb-4">${id?'Editar':'Nuevo'} distribuidor / lead</h3>
+      <div class="space-y-3">
+        <label class="block text-sm font-medium text-ink-700">Fabricante
+          <select id="d_fab" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+            ${fab.map(f=>`<option value="${f.id}" ${d.fabricante_id===f.id?'selected':''}>${esc(f.nombre)}</option>`).join('')}
+          </select></label>
+        ${field('Empresa','d_emp',d.empresa)}
+        <div class="grid grid-cols-2 gap-3">${field('País','d_pais',d.pais)}${field('Ciudad','d_ciu',d.ciudad)}</div>
+        <div class="grid grid-cols-2 gap-3">${field('RUC / Tax ID','d_id',d.identificacion)}${field('Web','d_web',d.web)}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block text-sm font-medium text-ink-700">Tipo<select id="d_tipo" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${opt(['lead','posible_distribuidor','distribuidor','inactivo'],d.tipo||'lead')}</select></label>
+          <label class="block text-sm font-medium text-ink-700">Etapa<select id="d_etapa" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${opt(['nuevo','contactado','interesado','cotizado','negociacion','cerrado_ganado','cerrado_perdido'],d.etapa||'nuevo')}</select></label>
+        </div>
+        <label class="block text-sm font-medium text-ink-700">Fuente<select id="d_fuente" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${opt(['manual','importyeti','penta','referido','feria','web','otro'],d.fuente||'manual')}</select></label>
+        ${textarea('Notas','d_notas',d.notas)}
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+        <button onclick="saveDist('${id||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+      </div>
+    </div>`);
+}
+async function saveDist(id){
+  const rec = { fabricante_id:$('d_fab').value, empresa:$('d_emp').value.trim(), pais:$('d_pais').value.trim(),
+    ciudad:$('d_ciu').value.trim(), identificacion:$('d_id').value.trim(), web:$('d_web').value.trim(),
+    tipo:$('d_tipo').value, etapa:$('d_etapa').value, fuente:$('d_fuente').value, notas:$('d_notas').value.trim() };
+  if(!rec.empresa){ toast('La empresa es obligatoria','err'); return; }
+  const { error } = id ? await sb.from('distribuidores').update(rec).eq('id',id) : await sb.from('distribuidores').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Guardado'); closeModal(); loadDist();
+  if(S.route==='dashboard') viewDashboard();
+}
+
+// ---- Detalle de distribuidor (contactos + comunicaciones) ----
+async function distDetail(id){
+  const { data:d } = await sb.from('distribuidores').select('*, fabricantes(nombre)').eq('id',id).single();
+  const { data:contactos } = await sb.from('contactos').select('*').eq('distribuidor_id',id).order('es_principal',{ascending:false});
+  const { data:comu } = await sb.from('comunicaciones').select('*').eq('distribuidor_id',id).order('fecha',{ascending:false});
+  const { data:notas } = await sb.from('distribuidor_notas').select('*').eq('distribuidor_id',id).order('fecha',{ascending:false});
+  openModal(`
+    <div class="p-6">
+      <div class="flex justify-between items-start mb-1">
+        <h3 class="text-xl font-extrabold text-ink-900">${esc(d.empresa)}</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <p class="text-sm text-slate-500 mb-4">${esc(d.fabricantes?.nombre||'')} · ${esc(d.pais||'')} ${d.ciudad?'· '+esc(d.ciudad):''}</p>
+      <div class="flex gap-2 mb-5">
+        <button onclick="editDist('${id}')" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">Editar datos</button>
+        <button onclick="editContacto('${id}')" class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5">+ Contacto</button>
+        <button onclick="addComu('${id}')" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">+ Registrar comunicación</button>
+        ${d.tipo==='lead'?`<button onclick="evolveToClient('${id}')" class="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5">↑ Convertir en Current Client</button>`:''}
+      </div>
+
+      <h4 class="font-bold text-sm text-ink-800 mb-2">Contactos</h4>
+      <div class="space-y-2 mb-5">
+        ${(contactos||[]).length?(contactos||[]).map(c=>`
+          <div class="border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+            <div><div class="font-medium text-sm">${esc(c.nombre)} ${c.es_principal?'<span class="chip bg-brand-50 text-brand-700 ml-1">principal</span>':''}</div>
+            <div class="text-xs text-slate-500">${esc(c.cargo||'')} ${c.email?'· '+esc(c.email):''} ${c.telefono?'· '+esc(c.telefono):''}</div></div>
+            <div class="flex gap-2 items-center">
+              ${c.email?`<button onclick="composeEmail({to:'${esc(c.email)}', contacto_id:'${c.id}', distribuidor_id:'${id}'})" class="text-xs text-brand-600">✉ correo</button>`:''}
+              <button onclick="editContacto('${id}','${c.id}')" class="text-xs text-slate-500">editar</button>
+            </div>
+          </div>`).join(''):'<p class="text-sm text-slate-400">Sin contactos.</p>'}
+      </div>
+
+      <h4 class="font-bold text-sm text-ink-800 mb-2">Historial de comunicación</h4>
+      <div class="space-y-2 max-h-60 overflow-y-auto">
+        ${(comu||[]).length?(comu||[]).map(c=>`
+          <div class="border-l-2 border-brand-200 pl-3 py-1">
+            <div class="text-sm font-medium">${esc(c.asunto||c.tipo)} <span class="chip bg-slate-100 text-slate-500 ml-1">${c.tipo}</span></div>
+            <div class="text-xs text-slate-400">${fdt(c.fecha)}</div>
+            ${c.contenido?`<div class="text-sm text-slate-600 mt-0.5">${esc(c.contenido)}</div>`:''}
+          </div>`).join(''):'<p class="text-sm text-slate-400">Sin comunicaciones registradas.</p>'}
+      </div>
+
+      <h4 class="font-bold text-sm text-ink-800 mb-2 mt-5">Notas / bitácora</h4>
+      <div class="flex gap-2 mb-3">
+        <input id="nota_input" type="text" placeholder="Escribe una nota y pulsa Agregar…" onkeydown="if(event.key==='Enter')addNotaDist('${id}')" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm">
+        <button onclick="addNotaDist('${id}')" class="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Agregar</button>
+      </div>
+      <div class="space-y-2 max-h-60 overflow-y-auto">
+        ${(notas||[]).length?(notas||[]).map(n=>`
+          <div class="border-l-2 border-amber-200 pl-3 py-1 group flex justify-between items-start gap-2">
+            <div><div class="text-sm text-slate-700">${esc(n.nota)}</div>
+            <div class="text-xs text-slate-400">${esc(n.usuario_nombre||'')} · ${fdt(n.fecha)}</div></div>
+            <button onclick="delNotaDist('${n.id}','${id}')" class="text-xs text-slate-300 hover:text-red-600">eliminar</button>
+          </div>`).join(''):'<p class="text-sm text-slate-400">Sin notas aún.</p>'}
+      </div>
+    </div>`);
+}
+async function addNotaDist(distId){
+  const el=$('nota_input'); const v=(el?el.value:'').trim();
+  if(!v){ toast('Escribe una nota','err'); return; }
+  const { error }=await sb.from('distribuidor_notas').insert({ distribuidor_id:distId, nota:v, usuario_id:S.user.id, usuario_nombre:(S.perfil&&S.perfil.nombre)||S.user.email });
+  if(error){ toast(error.message,'err'); return; }
+  toast('Nota agregada'); distDetail(distId);
+}
+async function delNotaDist(notaId, distId){
+  if(!confirm('¿Eliminar esta nota?'))return;
+  const { error }=await sb.from('distribuidor_notas').delete().eq('id',notaId);
+  if(error){ toast(error.message,'err'); return; }
+  distDetail(distId);
+}
+async function editContacto(distId, cid){
+  let c={};
+  if(cid){ const {data}=await sb.from('contactos').select('*').eq('id',cid).single(); c=data||{}; }
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-4">${cid?'Editar':'Nuevo'} contacto</h3>
+    <div class="space-y-3">
+      ${field('Nombre','c_nom',c.nombre)}${field('Cargo','c_cargo',c.cargo)}
+      ${field('Email','c_email',c.email)}
+      <div class="grid grid-cols-2 gap-3">${field('Teléfono','c_tel',c.telefono)}${field('WhatsApp','c_wa',c.whatsapp)}</div>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="c_prin" ${c.es_principal?'checked':''}> Contacto principal</label>
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button onclick="distDetail('${distId}')" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Volver</button>
+      <button onclick="saveContacto('${distId}','${cid||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+    </div></div>`);
+}
+async function saveContacto(distId,cid){
+  const rec={ distribuidor_id:distId, nombre:$('c_nom').value.trim(), cargo:$('c_cargo').value.trim(),
+    email:$('c_email').value.trim(), telefono:$('c_tel').value.trim(), whatsapp:$('c_wa').value.trim(), es_principal:$('c_prin').checked };
+  if(!rec.nombre){ toast('El nombre es obligatorio','err'); return; }
+  const { error } = cid? await sb.from('contactos').update(rec).eq('id',cid):await sb.from('contactos').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Contacto guardado'); distDetail(distId);
+}
+async function addComu(distId){
+  const { data:contactos } = await sb.from('contactos').select('id,nombre').eq('distribuidor_id',distId);
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-4">Registrar comunicación</h3>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm font-medium">Tipo<select id="m_tipo" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${['email','llamada','whatsapp','reunion','nota'].map(t=>`<option>${t}</option>`).join('')}</select></label>
+        <label class="block text-sm font-medium">Dirección<select id="m_dir" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${['saliente','entrante','interna'].map(t=>`<option>${t}</option>`).join('')}</select></label>
+      </div>
+      <label class="block text-sm font-medium">Contacto<select id="m_cont" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"><option value="">—</option>${(contactos||[]).map(c=>`<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select></label>
+      ${field('Asunto','m_asunto')}
+      ${textarea('Detalle','m_det')}
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button onclick="distDetail('${distId}')" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Volver</button>
+      <button onclick="saveComu('${distId}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+    </div></div>`);
+}
+async function saveComu(distId){
+  const rec={ distribuidor_id:distId, contacto_id:$('m_cont').value||null, tipo:$('m_tipo').value,
+    direccion:$('m_dir').value, asunto:$('m_asunto').value.trim(), contenido:$('m_det').value.trim(), usuario_id:S.user.id };
+  const { error } = await sb.from('comunicaciones').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Comunicación registrada'); distDetail(distId);
+}
+
+// ---- Importar lista de distribuidores ----
+async function importDist(){
+  const fab = await fabricantes();
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-2">Importar distribuidores</h3>
+    <p class="text-sm text-slate-500 mb-3">Pega filas desde Excel. Una empresa por línea, columnas separadas por coma o tabulación:<br><code class="text-xs bg-slate-100 px-1 rounded">empresa, país, ciudad, contacto, email, teléfono</code></p>
+    <label class="block text-sm font-medium mb-1">Fabricante (cartera destino)</label>
+    <select id="imp_fab" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-3">${fab.map(f=>`<option value="${f.id}">${esc(f.nombre)}</option>`).join('')}</select>
+    <textarea id="imp_text" rows="8" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="Acme Distribuciones, Colombia, Bogotá, Juan Pérez, juan@acme.co, +57 300 000"></textarea>
+    <div class="flex gap-2 mt-4">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="runImport()" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Importar</button>
+    </div></div>`);
+}
+async function runImport(){
+  const fid=$('imp_fab').value;
+  const lines=$('imp_text').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast('Pega al menos una fila','err'); return; }
+  let ok=0;
+  for(const line of lines){
+    const c=line.split(/\t|,/).map(x=>x.trim());
+    const { data:d, error } = await sb.from('distribuidores').insert({ fabricante_id:fid, empresa:c[0], pais:c[1]||null, ciudad:c[2]||null, fuente:'manual' }).select().single();
+    if(error||!d) continue;
+    if(c[3]||c[4]) await sb.from('contactos').insert({ distribuidor_id:d.id, nombre:c[3]||'Contacto', email:c[4]||null, telefono:c[5]||null, es_principal:true });
+    ok++;
+  }
+  toast(`${ok} distribuidor(es) importados`); closeModal(); loadDist();
+}
+
+// ============================================================
+//  COMUNICACIONES (global)
+// ============================================================
+async function viewComunicaciones(){
+  const { data } = await sb.from('comunicaciones').select('*, distribuidores(empresa)').order('fecha',{ascending:false}).limit(200);
+  const rows=data||[];
+  $('content').innerHTML = `
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="text-left px-4 py-3">Fecha</th><th class="text-left px-4 py-3">Empresa</th><th class="text-left px-4 py-3">Tipo</th><th class="text-left px-4 py-3">Asunto</th><th class="text-left px-4 py-3">Dir.</th></tr></thead>
+        <tbody>${rows.length?rows.map(c=>`<tr class="border-t border-slate-100 hover:bg-slate-50 ${c.distribuidor_id?'cursor-pointer':''}" ${c.distribuidor_id?`onclick="distDetail('${c.distribuidor_id}')"`:''}>
+          <td class="px-4 py-3 text-slate-500">${fdt(c.fecha)}</td>
+          <td class="px-4 py-3 font-medium">${esc(c.distribuidores?.empresa||'—')}</td>
+          <td class="px-4 py-3"><span class="chip bg-slate-100 text-slate-600">${c.tipo}</span></td>
+          <td class="px-4 py-3">${esc(c.asunto||'')}</td>
+          <td class="px-4 py-3 text-slate-400">${c.direccion}</td></tr>`).join(''):'<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">Sin comunicaciones aún.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+// ============================================================
+//  TAREAS / PENDIENTES
+// ============================================================
+async function viewTareas(){
+  const { data } = await sb.from('tareas').select('*, distribuidores(empresa), fabricantes(nombre)').order('vence_el',{ascending:true,nullsFirst:false});
+  const rows=data||[]; const hoy=new Date();
+  const pr={baja:'slate',media:'blue',alta:'amber',urgente:'red'};
+  const activos=rows.filter(t=>t.estado!=='hecho');
+  const hechos =rows.filter(t=>t.estado==='hecho');
+  const card = t => { const venc=t.vence_el&&new Date(t.vence_el)<hoy&&t.estado!=='hecho';
+    return `<div class="bg-white rounded-xl border ${venc?'border-amber-300':'border-slate-200'} p-4 flex items-center gap-3">
+      <input type="checkbox" ${t.estado==='hecho'?'checked':''} onchange="toggleTarea('${t.id}',this.checked)" class="w-5 h-5 accent-brand-600">
+      <div class="flex-1 min-w-0">
+        <div class="font-medium ${t.estado==='hecho'?'line-through text-slate-400':'text-ink-900'}">${esc(t.titulo)}</div>
+        <div class="text-xs text-slate-400">${[t.fabricantes?.nombre,t.distribuidores?.empresa].filter(Boolean).map(esc).join(' · ')||'General'}${t.vence_el?' · vence '+fdate(t.vence_el):''}</div>
+      </div>
+      <span class="chip bg-${pr[t.prioridad]}-100 text-${pr[t.prioridad]}-700">${t.prioridad}</span>
+      ${venc?'<span class="chip bg-amber-500 text-white">vencido</span>':''}
+      <button onclick="editTarea('${t.id}')" class="text-xs text-slate-400 hover:text-brand-600">editar</button>
+      <button onclick="deleteTarea('${t.id}')" class="text-xs text-slate-400 hover:text-red-600">eliminar</button>
+    </div>`; };
+  $('content').innerHTML=`
+    <div class="flex justify-between items-center mb-4">
+      <p class="text-sm text-slate-500">${activos.length} pendientes activos · ${hechos.length} completados</p>
+      <button onclick="editTarea()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ Pendiente</button>
+    </div>
+    <h3 class="text-sm font-bold text-ink-900 mb-2">Pendientes (${activos.length})</h3>
+    <div class="space-y-2 mb-6">
+      ${activos.length?activos.map(card).join(''):'<div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">Sin pendientes. ¡Buen trabajo!</div>'}
+    </div>
+    <h3 class="text-sm font-bold text-slate-500 mb-2">Completados (${hechos.length})</h3>
+    <div class="space-y-2">
+      ${hechos.length?hechos.map(card).join(''):'<div class="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400">Aún no hay completados.</div>'}
+    </div>`;
+}
+async function logTarea(tareaId, accion, detalle){
+  try{ await sb.from('tarea_historial').insert({ tarea_id:tareaId, usuario_id:S.user.id, usuario_nombre:(S.perfil&&S.perfil.nombre)||S.user.email, accion, detalle:detalle||null }); }catch(e){}
+}
+async function toggleTarea(id,done){ const {error}=await sb.from('tareas').update({estado:done?'hecho':'pendiente'}).eq('id',id); if(error){toast(error.message,'err'); return;} await logTarea(id, done?'Marcó como completado':'Reabrió el pendiente',''); viewTareas(); refreshAlertBadge(); }
+async function deleteTarea(id){ if(!confirm('¿Eliminar este pendiente? Esta acción no se puede deshacer.'))return; const {error}=await sb.from('tareas').delete().eq('id',id); if(error){toast(error.message,'err');return;} toast('Pendiente eliminado'); viewTareas(); refreshAlertBadge(); }
+async function editTarea(id){
+  const fab=await fabricantes();
+  let t={}; let hist=[];
+  if(id){const {data}=await sb.from('tareas').select('*').eq('id',id).single();t=data||{};
+    const {data:h}=await sb.from('tarea_historial').select('*').eq('tarea_id',id).order('fecha',{ascending:false}); hist=h||[];}
+  const dist = t.fabricante_id ? (await sb.from('distribuidores').select('id,empresa').eq('fabricante_id',t.fabricante_id)).data||[] : [];
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-4">${id?'Editar':'Nuevo'} pendiente</h3>
+    <div class="space-y-3">
+      ${field('Título','t_tit',t.titulo)}
+      ${textarea('Descripción','t_desc',t.descripcion)}
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm font-medium">Fabricante<select id="t_fab" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"><option value="">—</option>${fab.map(f=>`<option value="${f.id}" ${t.fabricante_id===f.id?'selected':''}>${esc(f.nombre)}</option>`).join('')}</select></label>
+        <label class="block text-sm font-medium">Prioridad<select id="t_pri" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${['baja','media','alta','urgente'].map(p=>`<option ${t.prioridad===p?'selected':''}>${p}</option>`).join('')}</select></label>
+      </div>
+      <label class="block text-sm font-medium">Vence<input id="t_vence" type="date" value="${t.vence_el?t.vence_el.slice(0,10):''}" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></label>
+      ${id?`<div class="mt-2 border-t border-slate-100 pt-3">
+        <div class="text-sm font-semibold text-ink-800 mb-2">Historial de cambios</div>
+        <div class="space-y-1.5 max-h-40 overflow-auto pr-1">${hist.length?hist.map(h=>`<div class="text-xs text-slate-500"><span class="text-slate-700 font-medium">${esc(h.accion)}</span>${h.detalle?' · '+esc(h.detalle):''}<br><span class="text-slate-400">${esc(h.usuario_nombre||'')} · ${fdt(h.fecha)}</span></div>`).join(''):'<div class="text-xs text-slate-400">Sin cambios registrados aún.</div>'}</div>
+      </div>`:''}
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="saveTarea('${id||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+    </div></div>`);
+}
+async function saveTarea(id){
+  const rec={ titulo:$('t_tit').value.trim(), descripcion:$('t_desc').value.trim(), fabricante_id:$('t_fab').value||null,
+    prioridad:$('t_pri').value, vence_el:$('t_vence').value||null, asignado_a:S.user.id };
+  if(!rec.titulo){ toast('El título es obligatorio','err'); return; }
+  if(id){
+    const { data:old }=await sb.from('tareas').select('*').eq('id',id).single();
+    const { error }=await sb.from('tareas').update(rec).eq('id',id);
+    if(error){ toast(error.message,'err'); return; }
+    const campos={titulo:'título',descripcion:'descripción',prioridad:'prioridad',vence_el:'vence',fabricante_id:'fabricante'};
+    const cambios=[]; Object.keys(campos).forEach(k=>{ const a=(old&&old[k]!=null?old[k]:''), b=(rec[k]!=null?rec[k]:''); if(String(a)!==String(b)) cambios.push(campos[k]); });
+    await logTarea(id,'Actualizó el pendiente', cambios.length?('cambió: '+cambios.join(', ')):null);
+  } else {
+    rec.creado_por=S.user.id;
+    const { data:nuevo, error }=await sb.from('tareas').insert(rec).select().single();
+    if(error){ toast(error.message,'err'); return; }
+    if(nuevo) await logTarea(nuevo.id,'Creó el pendiente',null);
+  }
+  toast('Pendiente guardado'); closeModal(); viewTareas(); refreshAlertBadge();
+}
+
+// ============================================================
+//  CAMPAÑAS
+// ============================================================
+async function viewCampanas(){
+  const { data } = await sb.from('campanas').select('*, identidades_correo(nombre,email), envios_email(count)').order('created_at',{ascending:false});
+  let rows=data||[];
+  rows = rows.filter(c=>{ const ids=(c.fabricante_ids&&c.fabricante_ids.length)?c.fabricante_ids:(c.fabricante_id?[c.fabricante_id]:[]); const tieneMed=ids.includes(MODMID); return S.modulo==='mediplus' ? tieneMed : !tieneMed; });
+  const _fabs = await fabricantes(); const _fabName={}; (_fabs||[]).forEach(f=>_fabName[f.id]=f.nombre);
+  const fabsDe = c => { const ids=(c.fabricante_ids&&c.fabricante_ids.length)?c.fabricante_ids:(c.fabricante_id?[c.fabricante_id]:[]); return ids.length? ids.map(id=>_fabName[id]||'?').join(', ') : 'General'; };
+  const est={borrador:'slate',programada:'blue',enviando:'amber',enviada:'emerald',cancelada:'red'};
+  $('content').innerHTML=`
+    <div class="flex justify-between items-center mb-4">
+      <p class="text-sm text-slate-500">${rows.length} campañas</p>
+      <button onclick="editCampana()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ Campaña</button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      ${rows.length?rows.map(c=>`<div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="font-bold text-ink-900">${esc(c.nombre)}</h3>
+          <span class="chip bg-${est[c.estado]}-100 text-${est[c.estado]}-700">${c.estado}</span>
+        </div>
+        <p class="text-sm text-slate-500">${esc(fabsDe(c))}</p>
+        <p class="text-xs text-slate-400 mt-1">📨 ${esc(c.identidades_correo?.email||'IBC predeterminado')} · ${c.envios_email?.[0]?.count||0} envíos</p>
+        <p class="text-sm text-slate-600 mt-2 truncate">${esc(c.asunto||'(sin asunto)')}</p>
+        <div class="flex gap-2 mt-3">
+          <button onclick="editCampana('${c.id}')" class="flex-1 text-xs border border-slate-200 rounded-lg py-1.5 hover:bg-slate-50">Abrir / editar</button>
+          <button onclick="campaignReport('${c.id}')" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">Reporte</button>
+          ${c.estado!=='enviada'?`<button onclick="sendCampana('${c.id}')" class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5">Enviar</button>`:''}
+        </div>
+      </div>`).join(''):'<div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400 col-span-2">Sin campañas. Crea la primera.</div>'}
+    </div>`;
+}
+async function editCampana(id){
+  const fab=await fabricantes(); const idents=await identidades();
+  let c={};
+  if(id){const {data}=await sb.from('campanas').select('*').eq('id',id).single();c=data||{};}
+  _adjuntos = Array.isArray(c.adjuntos)? c.adjuntos.slice() : [];
+  const cuerpoHtml = /<[a-z][\s\S]*>/i.test(c.cuerpo||'') ? (c.cuerpo||'') : esc(c.cuerpo||'').replace(/\n/g,'<br>');
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-4">${id?'Editar':'Nueva'} campaña</h3>
+    <div class="space-y-3">
+      ${field('Nombre interno','cp_nom',c.nombre)}
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-sm font-medium">Fabricantes (marca uno o varios)</label>
+          <div class="flex gap-3">
+            <button type="button" onclick="document.querySelectorAll('.cp_fab_chk').forEach(c=>c.checked=true)" class="text-xs text-brand-700 font-medium">Marcar todos</button>
+            <button type="button" onclick="document.querySelectorAll('.cp_fab_chk').forEach(c=>c.checked=false)" class="text-xs text-slate-500">Limpiar</button>
+          </div>
+        </div>
+        <div id="cp_fabs" class="border border-slate-300 rounded-lg p-2 max-h-40 overflow-y-auto grid grid-cols-2 gap-1">${fab.map(f=>{const sel=((c.fabricante_ids&&c.fabricante_ids.length)?c.fabricante_ids:(c.fabricante_id?[c.fabricante_id]:[])).includes(f.id);return `<label class="flex items-center gap-2 text-sm py-0.5"><input type="checkbox" class="cp_fab_chk accent-brand-600" value="${f.id}" ${sel?'checked':''}> ${esc(f.nombre)}</label>`;}).join('')}</div>
+        <p class="text-xs text-slate-400 mt-1">Para "todos menos…": pulsa "Marcar todos" y desmarca los que quieras excluir. Si no marcas ninguno, será "General".</p>
+      </div>
+      <label class="block text-sm font-medium">Enviar desde<select id="cp_ident" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"><option value="">Predeterminado (IBC)</option>${idents.map(i=>`<option value="${i.id}" ${c.identidad_correo_id===i.id?'selected':''}>${esc(i.nombre)} · ${esc(i.email)}</option>`).join('')}</select></label>
+      <label class="block text-sm font-medium">Copia oculta (BCC, opcional)<input id="cp_bcc" type="text" value="${esc(c.bcc||'')}" placeholder="correo1@dominio.com, correo2@dominio.com" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></label>
+      ${field('Asunto','cp_asunto',c.asunto)}
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-sm font-medium text-ink-700">Mensaje (usa {{nombre}} y {{empresa}})</label>
+          <button type="button" onclick="previewToggle('cp_cuerpo_rt','cp_editorWrap','cp_preview',this)" class="text-xs text-brand-700 font-medium">👁 Vista previa</button>
+        </div>
+        <div id="cp_editorWrap">${richEditor('cp_cuerpo_rt',cuerpoHtml,320,460)}</div>
+        <div id="cp_preview" hidden class="border border-slate-200 rounded-lg bg-white p-6 mx-auto text-sm" style="max-width:640px"></div>
+      </div>
+      <div>
+        <button onclick="pickAdjuntos('cp_adj')" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">📎 Adjuntar archivo</button>
+        <div id="cp_adj" class="flex flex-wrap gap-2 mt-2"></div>
+      </div>
+      <label class="block text-sm font-medium">Programar para (opcional)<input id="cp_prog" type="datetime-local" value="${c.programada_para?c.programada_para.slice(0,16):''}" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></label>
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="saveCampana('${id||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button>
+    </div></div>`);
+  setModalSize('max-w-3xl');
+  renderAdjuntos('cp_adj');
+  // (selector multiple por checkboxes; sin listener de auto-identidad)
+}
+async function saveCampana(id){
+  const _fabIds = Array.from(document.querySelectorAll('.cp_fab_chk:checked')).map(x=>x.value);
+  const rec={ nombre:$('cp_nom').value.trim(), fabricante_ids: _fabIds.length?_fabIds:null, fabricante_id: _fabIds.length===1?_fabIds[0]:null, identidad_correo_id:$('cp_ident').value||null, bcc:$('cp_bcc').value.trim()||null,
+    asunto:$('cp_asunto').value.trim(), cuerpo:getHtml('cp_cuerpo_rt'), adjuntos:_adjuntos, programada_para:$('cp_prog').value||null,
+    estado: $('cp_prog').value?'programada':'borrador', creado_por:S.user.id };
+  if(!rec.nombre){ toast('Ponle un nombre','err'); return; }
+  const { error } = id? await sb.from('campanas').update(rec).eq('id',id):await sb.from('campanas').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Campaña guardada'); closeModal(); viewCampanas();
+}
+async function sendCampana(id){
+  const { data:c } = await sb.from('campanas').select('*, fabricantes(nombre), identidades_correo(nombre,email)').eq('id',id).single();
+  // destinatarios: contactos con email de los distribuidores del fabricante de la campaña
+  let dq = sb.from('contactos').select('id,nombre,email,distribuidor_id, distribuidores!inner(empresa,fabricante_id)').not('email','is',null);
+  const _cfabs=(c.fabricante_ids&&c.fabricante_ids.length)?c.fabricante_ids:(c.fabricante_id?[c.fabricante_id]:[]);
+  if(_cfabs.length) dq = dq.in('distribuidores.fabricante_id', _cfabs);
+  const { data:cont } = await dq;
+  const dest=(cont||[]).filter(x=>x.email);
+  if(!dest.length){ toast('No hay contactos con email en esta cartera','err'); return; }
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-2">Enviar campaña</h3>
+    <p class="text-sm text-slate-600 mb-1"><b>${esc(c.nombre)}</b></p>
+    <p class="text-sm text-slate-500 mb-1">Desde: ${esc(c.identidades_correo?.email||'IBC predeterminado')}</p>
+    <p class="text-sm text-slate-500 mb-4">Destinatarios: <b>${dest.length}</b> contacto(s)${c.fabricantes?` de ${esc(c.fabricantes.nombre)}`:''}</p>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm max-h-32 overflow-y-auto mb-4">${dest.map(d=>esc(d.email)).join(', ')}</div>
+    <div class="flex gap-2">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="runSend('${id}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Enviar ahora</button>
+    </div>
+    <p class="text-xs text-slate-400 mt-3">Se registra cada envío en el historial del contacto.</p>
+  </div>`);
+  S.cache.sendDest = { dest, c };
+}
+async function runSend(id){
+  const { dest, c } = S.cache.sendDest||{};
+  if(!dest){ closeModal(); return; }
+  closeModal();
+  // 1) registrar envíos como pendientes + comunicación
+  const envios = dest.map(d=>({ campana_id:id, contacto_id:d.id, distribuidor_id:d.distribuidor_id,
+    identidad_correo_id:c.identidad_correo_id, email_destino:d.email, asunto:c.asunto, estado:'pendiente' }));
+  await sb.from('envios_email').insert(envios);
+  for(const d of dest){
+    await sb.from('comunicaciones').insert({ distribuidor_id:d.distribuidor_id, contacto_id:d.id, tipo:'email',
+      direccion:'saliente', asunto:c.asunto, contenido:'(Campaña: '+c.nombre+')', usuario_id:S.user.id, campana_id:id });
+  }
+  // 2) intentar el envío real vía función de Supabase
+  try{
+    const { data:res, error } = await sb.functions.invoke('swift-worker', { body:{ campana_id:id } });
+    if(error) throw error;
+    await sb.from('campanas').update({estado:'enviada'}).eq('id',id);
+    await sb.from('envios_email').update({estado:'enviado', enviado_el:new Date().toISOString()}).eq('campana_id',id);
+    toast(`Campaña enviada a ${dest.length} contacto(s)`);
+  }catch(e){
+    toast('Destinatarios registrados. El envío automático aún no está activado (falta configurar la función de correo).','info');
+  }
+  viewCampanas();
+}
+
+async function campaignReport(id){
+  const { data:c } = await sb.from('campanas').select('*, fabricantes(nombre), identidades_correo(email)').eq('id',id).single();
+  const { data:envios } = await sb.from('envios_email').select('*, distribuidores(empresa,pais), contactos(nombre)').eq('campana_id',id).order('enviado_el',{ascending:false});
+  const E=envios||[];
+  const total=E.length;
+  const enviados=E.filter(x=>['enviado','abierto'].includes(x.estado)).length;
+  const fallidos=E.filter(x=>x.estado==='fallido').length;
+  const abiertos=E.filter(x=>x.abierto).length;
+  const tasaAp = enviados? Math.round(abiertos/enviados*100):0;
+  const paises={}; E.forEach(x=>{const p=x.distribuidores?.pais||'Sin país'; paises[p]=(paises[p]||0)+1;});
+  const pares=Object.entries(paises).sort((a,b)=>b[1]-a[1]);
+  const maxP=Math.max(1,...pares.map(p=>p[1]));
+  const estColor={enviado:'emerald',abierto:'brand',fallido:'red',pendiente:'slate'};
+  const kpi=(v,l,col='brand')=>`<div class="bg-white rounded-xl border border-slate-200 p-3 text-center"><div class="text-2xl font-extrabold text-${col}-700">${v}</div><div class="text-[11px] text-slate-500 mt-0.5">${l}</div></div>`;
+  openModal(`<div class="p-6">
+    <div class="flex justify-between items-start mb-1">
+      <h3 class="text-xl font-extrabold text-ink-900 pr-6">${esc(c.nombre)}</h3>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-sm text-slate-500 mb-4">${esc(c.fabricantes?.nombre||'General')} · ${esc(c.identidades_correo?.email||'IBC')}</p>
+    <div class="grid grid-cols-4 gap-2 mb-4">
+      ${kpi(total,'Destinatarios')}
+      ${kpi(enviados,'Enviados','emerald')}
+      ${kpi(abiertos,'Aperturas','brand')}
+      ${kpi(tasaAp+'%','Tasa apertura','brand')}
+    </div>
+    <div class="mb-1 flex justify-between text-xs text-slate-500"><span>Tasa de apertura</span><span>${tasaAp}%</span></div>
+    <div class="bg-slate-100 rounded-full h-3 overflow-hidden mb-1"><div class="h-3 bg-brand-600 rounded-full" style="width:${tasaAp}%"></div></div>
+    <p class="text-xs text-slate-400 mb-5">Las aperturas son orientativas: Gmail puede precargar imágenes y algunos clientes las bloquean.</p>
+    <h4 class="font-bold text-sm mb-2">Por país</h4>
+    <div class="space-y-1.5 mb-5">
+      ${pares.length?pares.map(([p,n])=>`<div class="flex items-center gap-3">
+        <div class="w-28 text-xs text-slate-500 truncate">${esc(p)}</div>
+        <div class="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden"><div class="h-4 bg-brand-600 rounded-full" style="width:${n/maxP*100}%"></div></div>
+        <div class="w-8 text-right text-xs font-semibold">${n}</div></div>`).join(''):'<p class="text-sm text-slate-400">Sin datos de país. Completa el país de los distribuidores.</p>'}
+    </div>
+    <h4 class="font-bold text-sm mb-2">Destinatarios</h4>
+    <div class="border border-slate-200 rounded-lg max-h-52 overflow-y-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr><th class="text-left px-3 py-2">Empresa</th><th class="text-left px-3 py-2">Correo</th><th class="text-left px-3 py-2">País</th><th class="text-left px-3 py-2">Estado</th><th class="text-left px-3 py-2">Abierto</th></tr></thead>
+        <tbody>${E.length?E.map(x=>`<tr class="border-t border-slate-100">
+          <td class="px-3 py-2">${esc(x.distribuidores?.empresa||'')}</td>
+          <td class="px-3 py-2 text-slate-500">${esc(x.email_destino)}</td>
+          <td class="px-3 py-2 text-slate-500">${esc(x.distribuidores?.pais||'')}</td>
+          <td class="px-3 py-2"><span class="chip bg-${estColor[x.estado]||'slate'}-100 text-${estColor[x.estado]||'slate'}-700">${x.estado}</span></td>
+          <td class="px-3 py-2 text-slate-500">${x.abierto?fdt(x.abierto_el):'—'}</td>
+        </tr>`).join(''):'<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">Sin envíos todavía.</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`);
+  setModalSize('max-w-3xl');
+}
+
+// ============================================================
+//  DATOS IMPORTYETI / PENTA
+// ============================================================
+async function viewDatos(){
+  $('content').innerHTML=`
+    <div class="flex gap-2 mb-4">
+      <button onclick="DATTAB='importyeti';loadDatos()" id="tab_iy" class="px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white">ImportYeti</button>
+      <button onclick="DATTAB='penta';loadDatos()" id="tab_pe" class="px-4 py-2 rounded-lg text-sm font-semibold bg-white border border-slate-200">Penta</button>
+      <div class="flex-1"></div>
+      <button onclick="analyzeDatos()" class="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-brand-700">Analizar e identificar importadores</button>
+      <button onclick="importDatos()" class="border border-slate-300 text-sm px-4 py-2 rounded-lg hover:bg-slate-50">Pegar / importar datos</button>
+    </div>
+    <div class="bg-brand-50 border border-brand-100 rounded-lg p-3 text-sm text-brand-900 mb-4">
+      <b>¿Para qué sirve esta sección?</b> Aquí conviertes en <b>leads</b> a los <b>importadores</b> que aparecen en los datos de ImportYeti / Penta. Sube o pega tus datos, pulsa <b>“Analizar e identificar importadores”</b> para ver quiénes son (con sus productos y volumen de operaciones) y cuáles son <b>nuevos</b> frente a tu cartera, y conviértelos en leads <b>sin duplicar</b> los que ya tienes.
+    </div>
+    <div id="datList"></div>`;
+  loadDatos();
+}
+let DATTAB='importyeti'; let _impNuevos=[];
+async function loadDatos(){
+  $('tab_iy').className = 'px-4 py-2 rounded-lg text-sm font-semibold '+(DATTAB==='importyeti'?'bg-brand-600 text-white':'bg-white border border-slate-200');
+  $('tab_pe').className = 'px-4 py-2 rounded-lg text-sm font-semibold '+(DATTAB==='penta'?'bg-brand-600 text-white':'bg-white border border-slate-200');
+  const table = DATTAB==='importyeti'?'datos_importyeti':'datos_penta';
+  const { data } = await sb.from(table).select('*').order('created_at',{ascending:false}).limit(200);
+  const rows=data||[];
+  $('datList').innerHTML = rows.length?`<div class="bg-white rounded-xl border border-slate-200 overflow-hidden"><table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="text-left px-4 py-3">Empresa</th><th class="text-left px-4 py-3">${DATTAB==='penta'?'País':'HS / Producto'}</th><th class="text-left px-4 py-3">Detalle</th><th></th></tr></thead>
+    <tbody>${rows.map(r=>`<tr class="border-t border-slate-100">
+      <td class="px-4 py-3 font-medium">${esc(r.empresa||'')}</td>
+      <td class="px-4 py-3 text-slate-500">${esc(DATTAB==='penta'?(r.pais||''):(r.hs_code||r.producto||''))}</td>
+      <td class="px-4 py-3 text-slate-500">${esc(r.producto||r.operacion||r.socio_comercial||'')}</td>
+      <td class="px-4 py-3 text-right"><button onclick="datosToLead('${table}','${r.id}','${esc(r.empresa||'')}')" class="text-xs text-brand-600 font-semibold">→ Convertir en lead</button></td>
+    </tr>`).join('')}</tbody></table></div>` : '<div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">Sin datos importados.</div>';
+}
+async function importDatos(){
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-2">Importar datos de ${DATTAB==='importyeti'?'ImportYeti':'Penta'}</h3>
+    <p class="text-sm text-slate-500 mb-3">Columnas (en este orden): <code class="text-xs bg-slate-100 px-1 rounded">${DATTAB==='penta'?'empresa, país, producto, operación':'empresa, hs_code, producto, socio_comercial'}</code></p>
+    <label class="block text-sm font-medium mb-1">Adjuntar archivo (CSV o Excel)</label>
+    <input type="file" id="dat_file" accept=".csv,.xlsx,.xls" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-1">
+    <p class="text-xs text-slate-400 mb-3">Si el archivo trae una fila de encabezados (Empresa, País…), se detecta y se omite automáticamente.</p>
+    <p class="text-center text-xs text-slate-400 my-2">— o pega el texto (una empresa por línea) —</p>
+    <textarea id="dat_text" rows="6" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"></textarea>
+    <div class="flex gap-2 mt-4"><button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+    <button onclick="runImportDatos()" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Importar</button></div></div>`);
+}
+function parseDatosFile(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+        let start=0;
+        if(rows.length){ const h=(rows[0][0]||'').toString().toLowerCase();
+          if(['empresa','company','razón social','razon social','company name','nombre'].some(k=>h.includes(k))) start=1; }
+        const recs=[];
+        for(let i=start;i<rows.length;i++){
+          const c=(rows[i]||[]).map(x=> x==null?'':x.toString().trim());
+          if(!c[0]) continue;
+          recs.push(DATTAB==='penta'
+            ? {empresa:c[0],pais:c[1]||null,producto:c[2]||null,operacion:c[3]||null,importado_por:S.user.id}
+            : {empresa:c[0],hs_code:c[1]||null,producto:c[2]||null,socio_comercial:c[3]||null,importado_por:S.user.id});
+        }
+        resolve(recs);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror=()=>reject(new Error('No se pudo leer el archivo'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+async function runImportDatos(){
+  const fi=$('dat_file');
+  let recs=[];
+  try{
+    if(fi && fi.files && fi.files.length){
+      recs = await parseDatosFile(fi.files[0]);
+    } else {
+      const lines=$('dat_text').value.split('\n').map(l=>l.trim()).filter(Boolean);
+      recs=lines.map(l=>{const c=l.split(/\t|,/).map(x=>x.trim());
+        return DATTAB==='penta'?{empresa:c[0],pais:c[1]||null,producto:c[2]||null,operacion:c[3]||null,importado_por:S.user.id}
+          :{empresa:c[0],hs_code:c[1]||null,producto:c[2]||null,socio_comercial:c[3]||null,importado_por:S.user.id};});
+    }
+  }catch(err){ toast(err.message||'Error leyendo el archivo','err'); return; }
+  if(!recs.length){ toast('Adjunta un archivo o pega al menos una fila','err'); return; }
+  const { error } = await sb.from(DATTAB==='importyeti'?'datos_importyeti':'datos_penta').insert(recs);
+  if(error){ toast(error.message,'err'); return; }
+  toast(`${recs.length} registro(s) importados`); closeModal(); loadDatos();
+}
+async function datosToLead(table,id,empresa){
+  const fab=await fabricantes();
+  openModal(`<div class="p-6"><h3 class="text-lg font-bold mb-4">Convertir en lead</h3>
+    <p class="text-sm text-slate-600 mb-3">Empresa: <b>${esc(empresa)}</b></p>
+    <label class="block text-sm font-medium mb-1">Asignar a la cartera de:</label>
+    <select id="conv_fab" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-4">${fab.map(f=>`<option value="${f.id}">${esc(f.nombre)}</option>`).join('')}</select>
+    <div class="flex gap-2"><button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+    <button onclick="runConvLead('${table}','${id}','${esc(empresa)}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Crear lead</button></div></div>`);
+}
+async function runConvLead(table,id,empresa){
+  const fid=$('conv_fab').value;
+  const { data:d, error } = await sb.from('distribuidores').insert({ fabricante_id:fid, empresa, tipo:'lead', fuente:table==='datos_penta'?'penta':'importyeti' }).select().single();
+  if(error){ toast(error.message,'err'); return; }
+  await sb.from(table).update({ distribuidor_id:d.id }).eq('id',id);
+  toast('Lead creado en la cartera'); closeModal();
+}
+const _norm = s => (s||'').toString().trim().toLowerCase().replace(/\s+/g,' ');
+async function analyzeDatos(){
+  const table = DATTAB==='importyeti'?'datos_importyeti':'datos_penta';
+  $('datList').innerHTML='<div class="text-slate-400 text-sm py-6 text-center">Analizando importadores…</div>';
+  const cols = 'empresa,producto'+(DATTAB==='penta'?',pais,operacion':',hs_code,socio_comercial');
+  const rows = await fetchAll(table, cols);
+  const exist = await fetchAll('distribuidores','empresa');
+  const existSet = new Set((exist||[]).map(d=>_norm(d.empresa)));
+  const map={};
+  (rows||[]).forEach(r=>{ const k=_norm(r.empresa); if(!k)return; if(!map[k])map[k]={empresa:r.empresa,registros:0,productos:new Set()}; map[k].registros++; if(r.producto)map[k].productos.add(String(r.producto).trim()); });
+  const imp=Object.values(map).map(i=>({empresa:i.empresa,registros:i.registros,productos:[...i.productos],nuevo:!existSet.has(_norm(i.empresa))})).sort((a,b)=>b.registros-a.registros);
+  const nuevos=imp.filter(i=>i.nuevo);
+  _impNuevos=nuevos.map(i=>i.empresa);
+  const card=(l,v,c='brand')=>`<div class="bg-white rounded-xl border border-slate-200 p-4"><div class="text-2xl font-extrabold text-${c}-700">${v}</div><div class="text-xs text-slate-500 mt-1">${l}</div></div>`;
+  $('datList').innerHTML=`
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      ${card('Importadores únicos',imp.length)}
+      ${card('Nuevos (no están en cartera)',nuevos.length,'emerald')}
+      ${card('Ya en tu cartera',imp.length-nuevos.length,'slate')}
+      ${card('Registros analizados',(rows||[]).length,'amber')}
+    </div>
+    <div class="flex flex-wrap gap-2 justify-between items-center mb-3">
+      <p class="text-xs text-slate-500">El <b>volumen</b> es el número de operaciones/registros encontrados por importador en los datos que subiste.</p>
+      ${nuevos.length?`<button onclick="bulkLeadModal()" class="bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-emerald-700">Convertir ${nuevos.length} nuevos en leads</button>`:'<span class="text-xs text-slate-400">No hay importadores nuevos para convertir.</span>'}
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden"><table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="text-left px-4 py-3">Importador</th><th class="text-left px-4 py-3">Volumen</th><th class="text-left px-4 py-3">Productos</th><th class="text-left px-4 py-3">Estado</th></tr></thead>
+      <tbody>${imp.length?imp.map(i=>`<tr class="border-t border-slate-100">
+        <td class="px-4 py-3 font-medium">${esc(i.empresa)}</td>
+        <td class="px-4 py-3 text-slate-500">${i.registros}</td>
+        <td class="px-4 py-3 text-slate-500"><span title="${esc(i.productos.join(', '))}">${esc(i.productos.slice(0,3).join(', '))}${i.productos.length>3?' …':''}</span></td>
+        <td class="px-4 py-3">${i.nuevo?'<span class="chip bg-emerald-100 text-emerald-700">nuevo</span>':'<span class="chip bg-slate-100 text-slate-500">ya es lead</span>'}</td>
+      </tr>`).join(''):'<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No hay datos para analizar. Importa primero con “Pegar / importar datos”.</td></tr>'}</tbody></table></div>`;
+}
+function bulkLeadModal(){
+  if(!_impNuevos.length){ toast('No hay importadores nuevos','err'); return; }
+  fabricantes().then(fab=>{
+    openModal(`<div class="p-6"><h3 class="text-lg font-bold mb-2">Convertir ${_impNuevos.length} importadores en leads</h3>
+      <p class="text-sm text-slate-600 mb-3">Se crearán como leads nuevos, evitando duplicar los que ya existan en tu cartera.</p>
+      <label class="block text-sm font-medium mb-1">Asignar a la cartera de:</label>
+      <select id="bulk_fab" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-4">${fab.map(f=>`<option value="${f.id}">${esc(f.nombre)}</option>`).join('')}</select>
+      <div class="flex gap-2"><button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="runBulkLeads()" class="flex-1 bg-emerald-600 text-white rounded-lg py-2 text-sm font-semibold">Crear leads</button></div></div>`);
+  });
+}
+async function runBulkLeads(){
+  const fid=$('bulk_fab').value;
+  const fuente=DATTAB==='penta'?'penta':'importyeti';
+  const exist=await fetchAll('distribuidores','empresa');
+  const existSet=new Set((exist||[]).map(d=>_norm(d.empresa)));
+  const nuevos=_impNuevos.filter(e=>!existSet.has(_norm(e)));
+  if(!nuevos.length){ toast('Esos importadores ya están en tu cartera','info'); closeModal(); return; }
+  const recs=nuevos.map(e=>({fabricante_id:fid,empresa:e,tipo:'lead',fuente}));
+  const { error }=await sb.from('distribuidores').insert(recs);
+  if(error){ toast(error.message,'err'); return; }
+  toast(`${recs.length} leads creados sin duplicar`); closeModal(); analyzeDatos();
+}
+
+// ============================================================
+//  ALERTAS
+// ============================================================
+async function viewAlertas(){
+  const { data:alertas } = await sb.from('alertas').select('*').order('fecha',{ascending:false});
+  const { data:tareas } = await sb.from('tareas').select('id,titulo,vence_el').neq('estado','hecho').neq('estado','cancelada').not('vence_el','is',null);
+  const hoy=new Date();
+  const vencidas=(tareas||[]).filter(t=>new Date(t.vence_el)<hoy);
+  $('content').innerHTML=`
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>
+        <div class="flex justify-between items-center mb-3"><h3 class="font-bold">Recordatorios</h3>
+          <button onclick="newAlerta()" class="text-sm bg-brand-600 text-white px-3 py-1.5 rounded-lg">+ Recordatorio</button></div>
+        <div class="space-y-2">
+          ${(alertas||[]).length?(alertas||[]).map(a=>`<div class="bg-white rounded-xl border ${a.leida?'border-slate-200':'border-amber-300'} p-4 flex items-start gap-3">
+            <div class="flex-1"><div class="font-medium ${a.leida?'text-slate-400':'text-ink-900'}">${esc(a.mensaje)}</div>
+            <div class="text-xs text-slate-400">${fdt(a.fecha)} · ${a.severidad}</div></div>
+            ${!a.leida?`<button onclick="markAlerta('${a.id}')" class="text-xs text-brand-600">marcar leída</button>`:''}
+          </div>`).join(''):'<div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">Sin recordatorios.</div>'}
+        </div>
+      </div>
+      <div>
+        <h3 class="font-bold mb-3">Pendientes vencidos (${vencidas.length})</h3>
+        <div class="space-y-2">
+          ${vencidas.length?vencidas.map(t=>`<div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div class="font-medium text-amber-900">${esc(t.titulo)}</div>
+            <div class="text-xs text-amber-700">Venció ${fdate(t.vence_el)}</div></div>`).join(''):'<div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">Todo al día.</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+function newAlerta(){
+  openModal(`<div class="p-6"><h3 class="text-lg font-bold mb-4">Nuevo recordatorio</h3>
+    ${textarea('Mensaje','al_msg')}
+    <label class="block text-sm font-medium mt-3">Severidad<select id="al_sev" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">${['info','aviso','urgente'].map(s=>`<option>${s}</option>`).join('')}</select></label>
+    <div class="flex gap-2 mt-6"><button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+    <button onclick="saveAlerta()" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button></div></div>`);
+}
+async function saveAlerta(){
+  const rec={ mensaje:$('al_msg').value.trim(), severidad:$('al_sev').value, para_usuario:S.user.id, tipo:'recordatorio' };
+  if(!rec.mensaje){ toast('Escribe el mensaje','err'); return; }
+  const { error } = await sb.from('alertas').insert(rec);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Recordatorio guardado'); closeModal(); viewAlertas(); refreshAlertBadge();
+}
+async function markAlerta(id){ await sb.from('alertas').update({leida:true}).eq('id',id); viewAlertas(); refreshAlertBadge(); }
+async function refreshAlertBadge(){
+  const { data:tareas } = await sb.from('tareas').select('vence_el').neq('estado','hecho').neq('estado','cancelada').not('vence_el','is',null);
+  const fin=new Date(); fin.setHours(23,59,59,999);
+  const total=(tareas||[]).filter(t=>new Date(t.vence_el)<=fin).length;
+  const b=$('alertBadge'); if(b){ b.textContent=total; b.hidden = total===0; }
+}
+
+// ============================================================
+//  CONFIGURACIÓN (solo admin)
+// ============================================================
+// ============================================================
+//  MAPA MUNDIAL DE DISTRIBUIDORES
+// ============================================================
+const PAIS_COORD = {
+ 'peru':[-9.19,-75.02],'mexico':[23.63,-102.55],'colombia':[4.57,-74.30],'ecuador':[-1.83,-78.18],
+ 'chile':[-35.68,-71.54],'argentina':[-38.42,-63.62],'brasil':[-14.24,-51.93],'brazil':[-14.24,-51.93],
+ 'bolivia':[-16.29,-63.59],'venezuela':[6.42,-66.59],'uruguay':[-32.52,-55.77],'paraguay':[-23.44,-58.44],
+ 'panama':[8.54,-80.78],'costa rica':[9.75,-83.75],'guatemala':[15.78,-90.23],'honduras':[15.20,-86.24],
+ 'el salvador':[13.79,-88.90],'nicaragua':[12.87,-85.21],'republica dominicana':[18.74,-70.16],'dominicana':[18.74,-70.16],
+ 'puerto rico':[18.22,-66.59],'cuba':[21.52,-77.78],'haiti':[18.97,-72.29],'belice':[17.19,-88.50],
+ 'estados unidos':[37.09,-95.71],'usa':[37.09,-95.71],'eeuu':[37.09,-95.71],'united states':[37.09,-95.71],'ee.uu.':[37.09,-95.71],
+ 'canada':[56.13,-106.35],'espana':[40.46,-3.74],'spain':[40.46,-3.74],'portugal':[39.40,-8.22],
+ 'reino unido':[55.38,-3.44],'francia':[46.23,2.21],'alemania':[51.17,10.45],'italia':[41.87,12.57],
+ 'paises bajos':[52.13,5.29],'belgica':[50.50,4.47],'suiza':[46.82,8.23],'suecia':[60.13,18.64],
+ 'rusia':[61.52,105.32],'turquia':[38.96,35.24],'egipto':[26.82,30.80],'marruecos':[31.79,-7.09],
+ 'sudafrica':[-30.56,22.94],'nigeria':[9.08,8.68],'kenia':[-0.02,37.91],'argelia':[28.03,1.66],
+ 'emiratos arabes unidos':[23.42,53.85],'arabia saudita':[23.89,45.08],'israel':[31.05,34.85],
+ 'india':[20.59,78.96],'china':[35.86,104.19],'japon':[36.20,138.25],'corea del sur':[35.91,127.77],
+ 'vietnam':[14.06,108.28],'tailandia':[15.87,100.99],'indonesia':[-0.79,113.92],'malasia':[4.21,101.98],
+ 'filipinas':[12.88,121.77],'singapur':[1.35,103.82],'pakistan':[30.38,69.35],'bangladesh':[23.68,90.36],
+ 'australia':[-25.27,133.78],'nueva zelanda':[-40.90,174.89]
+};
+let _mapaGrupos={}, _mapaFabName={}, _mapaContactos={}; let _leafletMap=null; let _worldGeo=null;
+const PAIS_GEO={'peru':'Peru','mexico':'Mexico','colombia':'Colombia','ecuador':'Ecuador','chile':'Chile','argentina':'Argentina','brasil':'Brazil','brazil':'Brazil','bolivia':'Bolivia','venezuela':'Venezuela','uruguay':'Uruguay','paraguay':'Paraguay','panama':'Panama','costa rica':'Costa Rica','guatemala':'Guatemala','honduras':'Honduras','el salvador':'El Salvador','nicaragua':'Nicaragua','republica dominicana':'Dominican Republic','dominicana':'Dominican Republic','puerto rico':'Puerto Rico','cuba':'Cuba','haiti':'Haiti','belice':'Belize','estados unidos':'United States of America','usa':'United States of America','eeuu':'United States of America','united states':'United States of America','ee.uu.':'United States of America','canada':'Canada','espana':'Spain','spain':'Spain','portugal':'Portugal','reino unido':'United Kingdom','francia':'France','alemania':'Germany','italia':'Italy','paises bajos':'Netherlands','belgica':'Belgium','suiza':'Switzerland','suecia':'Sweden','rusia':'Russia','turquia':'Turkey','egipto':'Egypt','marruecos':'Morocco','sudafrica':'South Africa','nigeria':'Nigeria','kenia':'Kenya','argelia':'Algeria','emiratos arabes unidos':'United Arab Emirates','arabia saudita':'Saudi Arabia','israel':'Israel','india':'India','china':'China','japon':'Japan','corea del sur':'South Korea','vietnam':'Vietnam','tailandia':'Thailand','indonesia':'Indonesia','malasia':'Malaysia','filipinas':'Philippines','singapur':'Singapore','pakistan':'Pakistan','bangladesh':'Bangladesh','australia':'Australia','nueva zelanda':'New Zealand'};
+const LAND_SVG = '<polygon points="14.0,24.0 24.0,19.0 52.0,20.0 80.0,18.0 97.0,17.0 118.0,8.0 122.0,16.0 108.0,22.0 100.0,28.0 102.0,38.0 116.0,30.0 124.0,38.0 113.0,43.0 110.0,47.0 106.0,50.0 104.0,55.0 99.0,60.0 100.0,65.0 90.0,60.0 83.0,63.0 83.0,68.0 74.0,70.0 67.0,66.0 63.0,57.0 56.0,50.0 56.0,41.0 48.0,37.0 42.0,32.0 30.0,31.0 20.0,34.0 15.0,30.0"/><polygon points="88.0,72.0 94.0,75.0 97.0,79.0 101.0,81.0 103.0,82.0 99.0,77.0 94.0,74.0 90.0,73.0"/><polygon points="99.0,83.0 104.0,82.0 110.0,78.0 120.0,80.0 130.0,90.0 137.0,93.0 145.0,97.0 141.0,105.0 132.0,115.0 126.0,124.0 122.0,129.0 115.0,133.0 113.0,139.0 110.0,143.0 106.0,142.0 108.0,135.0 107.0,127.0 109.0,120.0 110.0,112.0 104.0,104.0 99.0,95.0 98.0,88.0"/><polygon points="163.0,75.0 164.0,68.0 171.0,59.0 180.0,54.0 191.0,53.0 200.0,58.0 213.0,59.0 223.0,79.0 231.0,78.0 228.0,88.0 222.0,94.0 220.0,106.0 213.0,116.0 205.0,124.0 199.0,125.0 195.0,113.0 193.0,102.0 189.0,91.0 188.0,86.0 178.0,85.0 171.0,84.0 166.0,81.0 163.0,75.0"/><polygon points="171.0,54.0 171.0,46.0 180.0,41.0 175.0,32.0 186.0,28.0 193.0,32.0 202.0,33.0 208.0,30.0 220.0,24.0 240.0,21.0 258.0,17.0 285.0,17.0 310.0,20.0 325.0,30.0 323.0,42.0 315.0,45.0 320.0,52.0 308.0,55.0 302.0,51.0 301.0,60.0 290.0,69.0 286.0,80.0 280.0,83.0 276.0,74.0 270.0,68.0 260.0,82.0 257.0,82.0 252.0,71.0 243.0,66.0 236.0,64.0 228.0,60.0 223.0,78.0 216.0,60.0 208.0,54.0 208.0,49.0 200.0,50.0 194.0,50.0 198.0,45.0 189.0,46.0 183.0,48.0 177.0,54.0"/><polygon points="294.0,112.0 302.0,107.0 311.0,102.0 317.0,102.0 323.0,101.0 326.0,109.0 331.0,115.0 333.0,119.0 329.0,127.0 321.0,129.0 314.0,124.0 306.0,122.0 298.0,125.0 294.0,120.0 292.0,115.0"/>';
+const _mnorm = s=>(s||'').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+async function viewMapa(filtroFab, filtroTipo){
+  filtroFab = filtroFab||''; filtroTipo = filtroTipo||'';
+  const fab = await fabricantes(); _mapaFabName={}; fab.forEach(f=>_mapaFabName[f.id]=f.nombre);
+  let D = await fetchAll('distribuidores','id,empresa,pais,fabricante_id,tipo');
+  D = D.filter(d=> S.modulo==='mediplus' ? d.fabricante_id===MODMID : d.fabricante_id!==MODMID);
+  if(filtroFab) D = D.filter(d=>d.fabricante_id===filtroFab);
+  if(filtroTipo) D = D.filter(d=> filtroTipo==='cliente' ? d.tipo==='distribuidor' : d.tipo==='lead');
+  const contactos = await fetchAll('contactos','distribuidor_id,nombre,email,telefono,es_principal');
+  _mapaContactos={}; contactos.forEach(c=>{ (_mapaContactos[c.distribuidor_id]=_mapaContactos[c.distribuidor_id]||[]).push(c); });
+  _mapaGrupos={};
+  D.forEach(d=>{ const k=_mnorm(d.pais); const co=PAIS_COORD[k]; if(co){ (_mapaGrupos[k]=_mapaGrupos[k]||{pais:d.pais,coord:co,items:[]}).items.push(d);} });
+  const arr=Object.values(_mapaGrupos); const maxN=Math.max(1,...arr.map(g=>g.items.length));
+  const totalEnMapa=arr.reduce((s,g)=>s+g.items.length,0);
+  // (mapa real con Leaflet; los marcadores se agregan tras render)
+  const selTipo=`<select id="m_tipo" onchange="mapaFiltrar()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm"><option value="">Leads y clientes</option><option value="lead" ${filtroTipo==='lead'?'selected':''}>Solo Leads</option><option value="cliente" ${filtroTipo==='cliente'?'selected':''}>Solo Current Clients</option></select>`;
+  const selFab=(S.modulo==='mediplus')?'':`<select id="m_fab" onchange="mapaFiltrar()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm"><option value="">Todos los fabricantes</option>${fab.map(f=>`<option value="${f.id}" ${f.id===filtroFab?'selected':''}>${esc(f.nombre)}</option>`).join('')}</select>`;
+  $('content').innerHTML=`
+    <div class="flex flex-wrap gap-3 items-center justify-between mb-3">
+      <p class="text-sm text-slate-500">${arr.length} país(es) · <b>${totalEnMapa}</b> en el mapa. Haz clic en un punto para ver el detalle.</p>
+      <div class="flex gap-2 flex-wrap">${selTipo}${selFab}</div>
+    </div>
+    <div id="mapCanvas" style="height:460px" class="rounded-xl border border-slate-200 mb-4 z-0"></div>
+    <div id="mapaDetalle" class="bg-white rounded-xl border border-slate-200 p-5"><p class="text-sm text-slate-400">Selecciona un país en el mapa para ver sus distribuidores, su línea de producto y sus datos de contacto.</p></div>`;
+  const COL = S.modulo==='mediplus' ? '#1e5fa8' : '#b22234';
+  try{ if(_leafletMap){ _leafletMap.remove(); _leafletMap=null; } }catch(e){}
+  if(typeof L==='undefined'){ const mc=document.getElementById('mapCanvas'); if(mc) mc.innerHTML='<div class="p-6 text-center text-slate-400 text-sm">No se pudo cargar el mapa (revisa tu conexión).</div>'; return; }
+  _leafletMap = L.map('mapCanvas',{worldCopyJump:true}).setView([-5,-60],2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:8,minZoom:1,attribution:'© OpenStreetMap'}).addTo(_leafletMap);
+  // Mapa de calor por país (coropletas) + número en el centro
+  const countByGeo={}, keyByGeo={};
+  arr.forEach(g=>{ const gn=PAIS_GEO[_mnorm(g.pais)]; if(!gn) return; const k=_mnorm(gn); countByGeo[k]=(countByGeo[k]||0)+g.items.length; keyByGeo[k]=_mnorm(g.pais); });
+  const maxC=Math.max(1,...Object.values(countByGeo));
+  const escala = S.modulo==='mediplus' ? ['#9dc3e6','#5b9bd5','#1e5fa8','#0b3d6b'] : ['#f0a6a6','#e07a7a','#b22234','#5e1019'];
+  const colorFor=c=>{ if(!c) return 'transparent'; const t=c/maxC; return escala[t>0.75?3:(t>0.4?2:(t>0.15?1:0))]; };
+  if(!_worldGeo){ try{ const r=await fetch('https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json'); _worldGeo=await r.json(); }catch(e){ _worldGeo=null; } }
+  if(_worldGeo){
+    L.geoJSON(_worldGeo,{
+      style:f=>{ const c=countByGeo[_mnorm(f.properties.name)]||0; return {fillColor:colorFor(c), fillOpacity:c?0.8:0, color:'#ffffff', weight:c?1:0.4, opacity:c?0.9:0.25}; },
+      onEachFeature:(f,layer)=>{ const k=_mnorm(f.properties.name); const c=countByGeo[k]||0; if(c){ layer.on('click',()=>mapaPais(keyByGeo[k])); layer.bindTooltip(`${f.properties.name}: ${c}`,{sticky:true}); } }
+    }).addTo(_leafletMap);
+  }
+  arr.forEach(g=>{ const [lat,lon]=g.coord;
+    const icon=L.divIcon({html:`<div style="color:#fff;font-weight:800;font-size:12px;text-shadow:0 1px 2px rgba(0,0,0,.85);cursor:pointer">${g.items.length}</div>`,className:'',iconSize:[22,16]});
+    L.marker([lat,lon],{icon}).addTo(_leafletMap).on('click',()=>mapaPais(_mnorm(g.pais)));
+  });
+  setTimeout(()=>{ try{ _leafletMap.invalidateSize(); }catch(e){} },150);
+}
+function mapaFiltrar(){ const f=document.getElementById('m_fab'); const t=document.getElementById('m_tipo'); viewMapa(f?f.value:'', t?t.value:''); }
+function mapaPais(k){
+  const g=_mapaGrupos[k]; if(!g) return;
+  const html=g.items.slice().sort((a,b)=>(a.empresa||'').localeCompare(b.empresa||'')).map(d=>{ const cs=(_mapaContactos[d.id]||[]); const c=cs.find(x=>x.es_principal)||cs[0];
+    return `<div class="border-b border-slate-100 py-2">
+      <div class="font-medium text-sm text-ink-900">${esc(d.empresa)}</div>
+      <div class="text-xs text-slate-500">Línea: ${esc(_mapaFabName[d.fabricante_id]||'—')}</div>
+      ${c?`<div class="text-xs text-slate-500">${esc(c.nombre||'Contacto')}${c.email?' · '+esc(c.email):''}${c.telefono?' · '+esc(c.telefono):''}</div>`:'<div class="text-xs text-slate-400">Sin contacto cargado</div>'}
+    </div>`; }).join('');
+  $('mapaDetalle').innerHTML=`<h3 class="font-bold text-ink-900 mb-2">${esc(g.pais)} — ${g.items.length} distribuidor(es)</h3><div class="max-h-96 overflow-auto">${html}</div>`;
+}
+// ============================================================
+//  REPORTS  (content in English, downloadable as PDF)
+// ============================================================
+let _reportData=null;
+function moduloNombre(){ return S.modulo==='mediplus' ? 'Mediplus India LTD' : 'IBC Group'; }
+async function viewReports(){
+  const iso=d=>d.toISOString().slice(0,10);
+  const today=new Date(), past=new Date(Date.now()-30*864e5);
+  let _ob=await fetchAll('distribuidores','origen_detalle,fabricante_id');
+  _ob=(_ob||[]).filter(d=> S.modulo==='mediplus'? d.fabricante_id===MODMID : d.fabricante_id!==MODMID);
+  const origins=[...new Set(_ob.map(d=>d.origen_detalle).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  $('content').innerHTML=`
+    <div class="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+      <h3 class="font-bold text-ink-900 mb-1">Activity Report — ${esc(moduloNombre())}</h3>
+      <p class="text-sm text-slate-500 mb-4">Choose a date range and optional filters. All report content is in English and can be downloaded as a PDF.</p>
+      <div class="flex flex-wrap gap-3 items-end mb-3">
+        <label class="text-sm text-slate-600">From<input type="date" id="rp_from" value="${iso(past)}" class="block mt-1 border border-slate-300 rounded-lg px-3 py-2"></label>
+        <label class="text-sm text-slate-600">To<input type="date" id="rp_to" value="${iso(today)}" class="block mt-1 border border-slate-300 rounded-lg px-3 py-2"></label>
+        <label class="text-sm text-slate-600">Type<select id="rp_tipo" class="block mt-1 border border-slate-300 rounded-lg px-3 py-2"><option value="">All</option><option value="lead">Leads only</option><option value="distribuidor">Current Clients only</option></select></label>
+        <button onclick="genReport()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">Generate report</button>
+        <button onclick="downloadReportPDF()" id="rp_dl" class="border border-slate-300 text-sm px-4 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-40" disabled>Download PDF</button>
+      </div>
+      ${origins.length?`<div>
+        <div class="text-sm text-slate-600 mb-1">Origins / trade shows <span class="text-slate-400">(optional — leave empty for all)</span></div>
+        <div class="flex flex-wrap gap-2 max-h-32 overflow-auto border border-slate-200 rounded-lg p-2">
+          ${origins.map(o=>`<label class="text-xs flex items-center gap-1 bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded cursor-pointer"><input type="checkbox" class="rp_org" value="${esc(o)}"> ${esc(o)}</label>`).join('')}
+        </div>
+        <div class="mt-1 flex gap-3"><button onclick="document.querySelectorAll('.rp_org').forEach(c=>c.checked=true)" class="text-xs text-brand-700">Select all</button><button onclick="document.querySelectorAll('.rp_org').forEach(c=>c.checked=false)" class="text-xs text-slate-500">Clear</button></div>
+      </div>`:''}
+    </div>
+    <div id="rp_out"></div>`;
+}
+async function genReport(){
+  const from=$('rp_from').value, to=$('rp_to').value;
+  if(!from||!to){ toast('Please select both dates','err'); return; }
+  const out=$('rp_out'); if(!out) return;
+  out.innerHTML='<div class="text-slate-400 text-sm py-6 text-center">Generating…</div>';
+  try{
+    const fromD=new Date(from+'T00:00:00'), toD=new Date(to+'T23:59:59');
+    const inRange=t=>{ if(!t) return false; const x=new Date(t); return x>=fromD && x<=toD; };
+    const tipoF=$('rp_tipo')?$('rp_tipo').value:'';
+    const orgs=[...document.querySelectorAll('.rp_org:checked')].map(c=>c.value);
+    let dist=await fetchAll('distribuidores','id,empresa,pais,tipo,etapa,fabricante_id,origen_detalle,created_at,updated_at');
+    dist=(dist||[]).filter(d=> S.modulo==='mediplus'? d.fabricante_id===MODMID : d.fabricante_id!==MODMID);
+    if(tipoF) dist=dist.filter(d=>d.tipo===tipoF);
+    if(orgs.length) dist=dist.filter(d=>orgs.includes(d.origen_detalle));
+    const dmap={}; dist.forEach(d=>dmap[d.id]=d);
+    const nuevos=dist.filter(d=>inRange(d.created_at));
+    const actualizados=dist.filter(d=>inRange(d.updated_at) && !inRange(d.created_at) && (!d.created_at || (new Date(d.updated_at)-new Date(d.created_at))>60000));
+    const distIds=new Set(dist.map(d=>d.id));
+    let comu=await fetchAll('comunicaciones','distribuidor_id,tipo,asunto,contenido,fecha');
+    let notas=await fetchAll('distribuidor_notas','distribuidor_id,nota,fecha');
+    const acts=[];
+    (comu||[]).forEach(c=>{ if(!distIds.has(c.distribuidor_id)) return; const detail=((c.contenido&&c.contenido.trim())||(c.asunto&&c.asunto.trim())||''); if(!detail) return; acts.push({distId:c.distribuidor_id, date:c.fecha, type:'Email', detail}); });
+    (notas||[]).forEach(n=>{ if(!distIds.has(n.distribuidor_id)) return; const detail=(n.nota&&n.nota.trim())||''; if(!detail) return; acts.push({distId:n.distribuidor_id, date:n.fecha, type:'Note', detail}); });
+    const actsRange=acts.filter(a=>inRange(a.date));
+    const lastByDist={};
+    actsRange.forEach(a=>{ const p=lastByDist[a.distId]; if(!p || new Date(a.date)>new Date(p.date)) lastByDist[a.distId]=a; });
+    const contacted=Object.keys(lastByDist).map(id=>({d:dmap[id], last:lastByDist[id]})).filter(x=>x.d);
+    _reportData={from,to,modulo:moduloNombre(),nuevos,actualizados,contacted};
+    const tipoLbl=t=> t==='distribuidor'?'Current Client':'Lead';
+    const stageEn=e=>({nuevo:'New',contactado:'Contacted',interesado:'Interested',cotizado:'Quoted',negociacion:'In Negotiation',cerrado_ganado:'Closed-Won',cerrado_perdido:'Closed-Lost'}[e]||(e||''));
+    const fmt=d=> d? new Date(d).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'2-digit'}):'';
+    const sec=(title,rows,cols,mapper)=>`
+      <div class="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+        <h4 class="font-bold text-ink-900 mb-3">${title} <span class="text-slate-400 font-normal">(${rows.length})</span></h4>
+        ${rows.length?`<div class="overflow-auto"><table class="w-full text-sm"><thead class="text-xs uppercase text-slate-500 bg-slate-50"><tr>${cols.map(c=>`<th class="text-left px-3 py-2">${c}</th>`).join('')}</tr></thead><tbody>${rows.map(mapper).join('')}</tbody></table></div>`:'<p class="text-sm text-slate-400">No records in this period.</p>'}
+      </div>`;
+    out.innerHTML=`
+      <div class="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-4 text-sm text-ink-800">
+        <b>${esc(moduloNombre())}</b> · Period: ${fmt(from)} — ${fmt(to)} · New: ${nuevos.length} · Updated: ${actualizados.length} · Contacted: ${contacted.length}
+      </div>
+      ${sec('New leads / clients added', nuevos, ['Company','Country','Type','Origin','Created'], d=>`<tr class="border-t border-slate-100"><td class="px-3 py-2 font-medium">${esc(d.empresa)}</td><td class="px-3 py-2 text-slate-500">${esc(d.pais||'')}</td><td class="px-3 py-2 text-slate-500">${tipoLbl(d.tipo)}</td><td class="px-3 py-2 text-slate-500">${esc(d.origen_detalle||'—')}</td><td class="px-3 py-2 text-slate-500">${fmt(d.created_at)}</td></tr>`)}
+      ${sec('Updated leads / clients', actualizados, ['Company','Country','Stage','Origin','Updated'], d=>`<tr class="border-t border-slate-100"><td class="px-3 py-2 font-medium">${esc(d.empresa)}</td><td class="px-3 py-2 text-slate-500">${esc(d.pais||'')}</td><td class="px-3 py-2 text-slate-500">${esc(stageEn(d.etapa))}</td><td class="px-3 py-2 text-slate-500">${esc(d.origen_detalle||'—')}</td><td class="px-3 py-2 text-slate-500">${fmt(d.updated_at)}</td></tr>`)}
+      ${sec('Contacted / updated — last activity', contacted, ['Company','Origin','Last activity','Type','Detail'], x=>`<tr class="border-t border-slate-100"><td class="px-3 py-2 font-medium">${esc(x.d.empresa)}</td><td class="px-3 py-2 text-slate-500">${esc(x.d.origen_detalle||'—')}</td><td class="px-3 py-2 text-slate-500">${fmt(x.last&&x.last.date)}</td><td class="px-3 py-2 text-slate-500">${esc((x.last&&x.last.type)||'')}</td><td class="px-3 py-2 text-slate-500">${esc(((x.last&&x.last.detail)||'').slice(0,200))}</td></tr>`)}`;
+    $('rp_dl').disabled=false;
+  }catch(err){
+    out.innerHTML='<div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4">Could not generate the report: '+esc(String(err&&err.message||err))+'</div>';
+  }
+}
+function downloadReportPDF(){
+  if(!_reportData){ toast('Generate the report first','err'); return; }
+  if(!window.jspdf || !window.jspdf.jsPDF){ toast('PDF library not loaded (check your connection)','err'); return; }
+  const { jsPDF }=window.jspdf; const doc=new jsPDF();
+  const fmt=d=> d? new Date(d).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'2-digit'}):'';
+  const tipoLbl=t=> t==='distribuidor'?'Current Client':'Lead';
+  const stageEn=e=>({nuevo:'New',contactado:'Contacted',interesado:'Interested',cotizado:'Quoted',negociacion:'In Negotiation',cerrado_ganado:'Closed-Won',cerrado_perdido:'Closed-Lost'}[e]||(e||''));
+  const headColor = S.modulo==='mediplus' ? [30,95,168] : [178,34,52];
+  const R=_reportData;
+  doc.setFontSize(16); doc.text('Activity Report — '+R.modulo, 14, 18);
+  doc.setFontSize(10); doc.setTextColor(120);
+  doc.text('Period: '+fmt(R.from)+' to '+fmt(R.to)+'    |    Generated: '+fmt(new Date()), 14, 25);
+  doc.text('New: '+R.nuevos.length+'    Updated: '+R.actualizados.length+'    Contacted: '+R.contacted.length, 14, 31);
+  doc.setTextColor(0);
+  let y=38;
+  const table=(title, head, body, colStyles)=>{
+    if(y>260){ doc.addPage(); y=18; }
+    doc.setFontSize(12); doc.text(title, 14, y);
+    doc.autoTable({ startY:y+3, head:[head], body:body.length?body:[head.map(()=>'—')], styles:{fontSize:8, cellPadding:2, overflow:'linebreak'}, headStyles:{fillColor:headColor}, columnStyles:colStyles||{}, margin:{left:14,right:14} });
+    y=doc.lastAutoTable.finalY+8;
+  };
+  table('New leads / clients added', ['Company','Country','Type','Origin','Created'], R.nuevos.map(d=>[d.empresa||'', d.pais||'', tipoLbl(d.tipo), d.origen_detalle||'—', fmt(d.created_at)]));
+  table('Updated leads / clients', ['Company','Country','Stage','Origin','Updated'], R.actualizados.map(d=>[d.empresa||'', d.pais||'', stageEn(d.etapa), d.origen_detalle||'—', fmt(d.updated_at)]));
+  table('Contacted / updated — last activity', ['Company','Origin','Last activity','Type','Detail'], R.contacted.map(x=>[x.d.empresa||'', x.d.origen_detalle||'—', fmt(x.last&&x.last.date), (x.last&&x.last.type)||'', ((x.last&&x.last.detail)||'').slice(0,300)]), {4:{cellWidth:65}});
+  doc.save('report_'+R.modulo.replace(/\s+/g,'_')+'_'+R.from+'_to_'+R.to+'.pdf');
+}
+async function viewConfig(){
+  if(!isAdmin()){ $('content').innerHTML='<div class="text-slate-400 text-center py-10">Solo el Administrador puede ver esta sección.</div>'; return; }
+  const idents=await identidades();
+  const { data:usuarios } = await sb.from('perfiles').select('*').order('created_at');
+  $('content').innerHTML=`
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold mb-3">Identidades de correo (remitentes)</h3>
+        <p class="text-sm text-slate-500 mb-3">El correo desde el que sale cada campaña. IBC es el predeterminado; Mediplus usa el suyo.</p>
+        <div class="space-y-2">
+          ${idents.map(i=>`<div class="border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+            <div><div class="font-medium text-sm">${esc(i.nombre)} ${i.es_predeterminada?'<span class="chip bg-brand-50 text-brand-700 ml-1">predeterminado</span>':''}</div>
+            <div class="text-xs text-slate-500">${esc(i.email)}</div></div>
+            <button onclick="editIdent('${i.id}')" class="text-xs text-brand-600">editar</button></div>`).join('')}
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold mb-3">Usuarios y roles</h3>
+        <p class="text-sm text-slate-500 mb-3">Crea usuarios en Supabase → Authentication. Aquí ajustas su rol.</p>
+        <div class="space-y-2">
+          ${(usuarios||[]).map(u=>`<div class="border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+            <div><div class="font-medium text-sm">${esc(u.nombre||u.email)}</div><div class="text-xs text-slate-500">${esc(u.email||'')}</div></div>
+            <select onchange="setRol('${u.id}',this.value)" class="text-sm border border-slate-300 rounded-lg px-2 py-1">
+              <option value="operador" ${u.rol==='operador'?'selected':''}>Operador</option>
+              <option value="administrador" ${u.rol==='administrador'?'selected':''}>Administrador</option>
+            </select></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+async function editIdent(id){
+  const idents=await identidades(); const i=idents.find(x=>x.id===id)||{};
+  openModal(`<div class="p-6"><h3 class="text-lg font-bold mb-4">Editar remitente</h3>
+    ${field('Nombre','id_nom',i.nombre)}${field('Correo','id_email',i.email)}
+    ${textarea('Firma (se agrega al final de cada correo)','id_firma',i.firma||'',5)}
+    <div class="flex gap-2 mt-6"><button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+    <button onclick="saveIdent('${id}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar</button></div></div>`);
+}
+async function saveIdent(id){
+  const { error } = await sb.from('identidades_correo').update({ nombre:$('id_nom').value.trim(), email:$('id_email').value.trim(), firma:$('id_firma').value }).eq('id',id);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Remitente actualizado'); closeModal(); viewConfig();
+}
+async function setRol(id,rol){
+  const { error } = await sb.from('perfiles').update({rol}).eq('id',id);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Rol actualizado');
+}
+
+// ============================================================
+//  BANDEJA DE CORREO
+// ============================================================
+const TEMAS = ['cotizacion','pedido','reclamo','logistica','facturacion','consulta','sin_clasificar'];
+const temaColor = {cotizacion:'amber',pedido:'emerald',reclamo:'red',logistica:'blue',facturacion:'violet',consulta:'slate',sin_clasificar:'slate'};
+
+async function viewBandeja(){
+  const fab = await fabricantes();
+  $('content').innerHTML = `
+    <div class="flex flex-wrap gap-2 items-center justify-between mb-4">
+      <div class="flex gap-2 flex-wrap">
+        <select id="b_fab" onchange="loadBandeja()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los clientes</option>
+          ${fab.map(f=>`<option value="${f.id}">${esc(f.nombre)}</option>`).join('')}
+        </select>
+        <select id="b_tema" onchange="loadBandeja()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los temas</option>
+          ${TEMAS.map(t=>`<option value="${t}">${t.replace('_',' ')}</option>`).join('')}
+        </select>
+        <input id="b_search" oninput="loadBandeja()" placeholder="Buscar remitente o asunto…" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="flex gap-2">
+        <button onclick="composeEmail()" class="border border-slate-300 text-sm px-4 py-2 rounded-lg hover:bg-slate-50">✉ Redactar</button>
+        <button onclick="sincronizar()" id="b_syncBtn" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">↻ Sincronizar</button>
+      </div>
+    </div>
+    <div id="bandejaList"></div>`;
+  loadBandeja();
+}
+async function loadBandeja(){
+  const fid=$('b_fab')?.value, tema=$('b_tema')?.value, s=($('b_search')?.value||'').toLowerCase();
+  let query = sb.from('correos').select('*, distribuidores(empresa), fabricantes(nombre)').order('fecha',{ascending:false}).limit(200);
+  if(fid) query=query.eq('fabricante_id',fid);
+  if(tema) query=query.eq('tema',tema);
+  const { data } = await query;
+  let rows=data||[];
+  if(s) rows=rows.filter(r=>(r.asunto||'').toLowerCase().includes(s)||(r.de_email||'').toLowerCase().includes(s)||(r.de_nombre||'').toLowerCase().includes(s));
+  $('bandejaList').innerHTML = rows.length?`
+    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+      ${rows.map(c=>`<div onclick="openCorreo('${c.id}')" class="p-4 hover:bg-slate-50 cursor-pointer flex items-start gap-3 ${c.leido?'':'bg-brand-50/50'}">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-sm ${c.leido?'text-slate-600':'text-ink-900'} truncate">${esc(c.de_nombre||c.de_email||'—')}</span>
+            ${!c.leido?'<span class="w-2 h-2 rounded-full bg-brand-600 flex-shrink-0"></span>':''}
+          </div>
+          <div class="text-sm ${c.leido?'text-slate-500':'text-ink-800 font-medium'} truncate">${esc(c.asunto||'(sin asunto)')}</div>
+          <div class="text-xs text-slate-400 truncate">${esc(c.snippet||'')}</div>
+        </div>
+        <div class="text-right flex-shrink-0 space-y-1 w-32">
+          <div class="text-xs text-slate-400">${fdt(c.fecha)}</div>
+          <span class="chip bg-${temaColor[c.tema]||'slate'}-100 text-${temaColor[c.tema]||'slate'}-700">${(c.tema||'').replace('_',' ')}</span>
+          ${c.distribuidores?`<div class="text-xs text-brand-700 font-medium truncate">${esc(c.distribuidores.empresa)}</div>`:'<div class="text-xs text-slate-300">sin cliente</div>'}
+        </div>
+      </div>`).join('')}
+    </div>` : '<div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">No hay correos todavía. Dale a <b>Sincronizar</b> para traer los de la bandeja de IBC.</div>';
+}
+async function sincronizar(){
+  const btn=$('b_syncBtn'); if(btn){btn.disabled=true; btn.textContent='Sincronizando…';}
+  try{
+    const { data, error } = await sb.functions.invoke('super-action', { body:{ max:30 } });
+    if(error){
+      let msg = error.message || 'Error';
+      try{ const j = await error.context.json(); if(j?.error) msg = j.error; }catch(_){}
+      throw new Error(msg);
+    }
+    if(data && data.ok===false) throw new Error(data.error||'Error');
+    toast(`Listo: ${data?.nuevos||0} correo(s) nuevo(s) de ${data?.revisados||0} revisados`);
+  }catch(e){
+    console.error('sync error:', e);
+    toast('No se pudo sincronizar: '+(e?.message||e), 'err');
+  }
+  if(btn){btn.disabled=false; btn.textContent='↻ Sincronizar';}
+  loadBandeja();
+}
+async function openCorreo(id){
+  const { data:c } = await sb.from('correos').select('*, distribuidores(empresa), fabricantes(nombre)').eq('id',id).single();
+  if(!c.leido) sb.from('correos').update({leido:true}).eq('id',id).then(()=>{});
+  const fab = await fabricantes();
+  openModal(`<div class="p-6">
+    <div class="flex justify-between items-start mb-1">
+      <h3 class="text-lg font-extrabold text-ink-900 pr-6">${esc(c.asunto||'(sin asunto)')}</h3>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-sm text-slate-500">De: ${esc(c.de_nombre||'')} &lt;${esc(c.de_email||'')}&gt;</p>
+    <p class="text-xs text-slate-400 mb-3">${fdt(c.fecha)}</p>
+    <button onclick="replyCorreo('${id}')" class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 mb-4">Responder</button>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-ink-800 max-h-60 overflow-y-auto whitespace-pre-wrap mb-5">${esc(c.cuerpo||c.snippet||'(sin contenido)')}</div>
+    <div class="border-t border-slate-100 pt-4 space-y-3">
+      <h4 class="font-bold text-sm">Clasificación</h4>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm font-medium">Cliente (fabricante)
+          <select id="co_fab" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+            <option value="">— sin asignar —</option>
+            ${fab.map(f=>`<option value="${f.id}" ${c.fabricante_id===f.id?'selected':''}>${esc(f.nombre)}</option>`).join('')}
+          </select></label>
+        <label class="block text-sm font-medium">Tema
+          <select id="co_tema" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+            ${TEMAS.map(t=>`<option value="${t}" ${c.tema===t?'selected':''}>${t.replace('_',' ')}</option>`).join('')}
+          </select></label>
+      </div>
+      <label class="block text-sm font-medium">Distribuidor (opcional)
+        <select id="co_dist" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"><option value="">— ninguno —</option></select></label>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cerrar</button>
+      <button onclick="saveCorreoTag('${id}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Guardar clasificación</button>
+    </div>
+  </div>`);
+  await fillCorreoDist(c.fabricante_id, c.distribuidor_id);
+  $('co_fab').addEventListener('change', e=>fillCorreoDist(e.target.value,null));
+}
+async function fillCorreoDist(fid, selected){
+  const sel=$('co_dist'); if(!sel) return;
+  if(!fid){ sel.innerHTML='<option value="">— ninguno —</option>'; return; }
+  const { data } = await sb.from('distribuidores').select('id,empresa').eq('fabricante_id',fid).order('empresa');
+  sel.innerHTML='<option value="">— ninguno —</option>'+(data||[]).map(d=>`<option value="${d.id}" ${selected===d.id?'selected':''}>${esc(d.empresa)}</option>`).join('');
+}
+async function saveCorreoTag(id){
+  const rec={ fabricante_id:$('co_fab').value||null, distribuidor_id:$('co_dist').value||null, tema:$('co_tema').value, etiqueta_manual:true };
+  const { error } = await sb.from('correos').update(rec).eq('id',id);
+  if(error){ toast(error.message,'err'); return; }
+  toast('Clasificación guardada'); closeModal(); loadBandeja();
+}
+
+// ============================================================
+//  REDACTAR / RESPONDER CORREOS
+// ============================================================
+let _firmaActual = '';
+let _adjuntos = [];
+
+// --- Editor de texto con formato ---
+function richEditor(id, html='', minH=180, maxH=320){
+  const fonts=['Arial','Georgia','Times New Roman','Courier New','Verdana','Tahoma'];
+  const sizes=[['2','Pequeño'],['3','Normal'],['4','Mediano'],['5','Grande'],['6','Muy grande']];
+  return `
+  <div class="border border-slate-300 rounded-lg overflow-hidden">
+    <div class="flex flex-wrap items-center gap-1 bg-slate-50 border-b border-slate-200 px-2 py-1.5">
+      <button type="button" onmousedown="event.preventDefault()" onclick="rexec('${id}','bold')" class="w-8 h-8 rounded hover:bg-slate-200 font-bold text-sm">B</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="rexec('${id}','italic')" class="w-8 h-8 rounded hover:bg-slate-200 italic text-sm">I</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="rexec('${id}','underline')" class="w-8 h-8 rounded hover:bg-slate-200 underline text-sm">U</button>
+      <span class="w-px h-5 bg-slate-300 mx-1"></span>
+      <select onmousedown="event.preventDefault()" onchange="rexec('${id}','fontName',this.value);this.selectedIndex=0" class="border border-slate-200 rounded px-1 py-1 text-xs bg-white">
+        <option value="">Fuente</option>${fonts.map(f=>`<option value="${f}">${f}</option>`).join('')}
+      </select>
+      <select onmousedown="event.preventDefault()" onchange="rexec('${id}','fontSize',this.value)" class="border border-slate-200 rounded px-1 py-1 text-xs bg-white">
+        ${sizes.map(s=>`<option value="${s[0]}" ${s[0]==='3'?'selected':''}>${s[1]}</option>`).join('')}
+      </select>
+      <input type="color" onchange="rexec('${id}','foreColor',this.value)" class="w-8 h-8 rounded cursor-pointer border border-slate-200" title="Color de texto">
+      <span class="w-px h-5 bg-slate-300 mx-1"></span>
+      <button type="button" onmousedown="event.preventDefault()" onclick="rexec('${id}','insertUnorderedList')" class="w-8 h-8 rounded hover:bg-slate-200 text-sm">•</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="rlink('${id}')" class="w-8 h-8 rounded hover:bg-slate-200 text-sm" title="Enlace">🔗</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="rimg('${id}')" class="px-2 h-8 rounded hover:bg-slate-200 text-xs" title="Insertar imagen">🖼 Imagen</button>
+    </div>
+    <div id="${id}" contenteditable="true" class="px-3 py-2 overflow-y-auto text-sm focus:outline-none" style="min-height:${minH}px;max-height:${maxH}px">${html}</div>
+  </div>`;
+}
+function rexec(id,cmd,val=null){ const el=$(id); if(el) el.focus(); document.execCommand(cmd,false,val); }
+function rlink(id){ const url=prompt('Pega el enlace (URL):'); if(url) rexec(id,'createLink',url); }
+async function rimg(id){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; toast('Subiendo imagen…','info');
+    const url=await subirArchivo(f); if(url){ rexec(id,'insertImage',url); } };
+  inp.click();
+}
+function getHtml(id){ return $(id)?.innerHTML || ''; }
+
+// --- Subir archivo a Supabase Storage ---
+async function subirArchivo(file){
+  const path = Date.now()+'_'+file.name.replace(/[^\w.\-]/g,'_');
+  const { error } = await sb.storage.from('adjuntos').upload(path, file);
+  if(error){ toast('No se pudo subir: '+error.message,'err'); return null; }
+  const { data:pub } = sb.storage.from('adjuntos').getPublicUrl(path);
+  return pub.publicUrl;
+}
+
+// --- Adjuntos ---
+function pickAdjuntos(containerId){
+  const inp=document.createElement('input'); inp.type='file'; inp.multiple=true;
+  inp.onchange=async()=>{
+    for(const f of inp.files){
+      if(f.size > 8*1024*1024){ toast(`"${f.name}" supera 8 MB y no se adjuntó`,'err'); continue; }
+      toast('Subiendo '+f.name+'…','info');
+      const url=await subirArchivo(f);
+      if(url) _adjuntos.push({ filename:f.name, url, contentType:f.type });
+    }
+    renderAdjuntos(containerId);
+  };
+  inp.click();
+}
+function renderAdjuntos(containerId){
+  const c=$(containerId); if(!c) return;
+  c.innerHTML=_adjuntos.map((a,i)=>`<span class="chip bg-slate-100 text-slate-700 inline-flex items-center gap-1">📎 ${esc(a.filename)} <button onclick="quitarAdjunto(${i},'${containerId}')" class="text-slate-400 hover:text-red-600 font-bold">✕</button></span>`).join('');
+}
+function quitarAdjunto(i,containerId){ _adjuntos.splice(i,1); renderAdjuntos(containerId); }
+
+let _plantillas=[];
+function aplicarPlantilla(){
+  const sel=$('em_plantilla'); if(!sel||sel.value==='') return;
+  const p=(_plantillas||[])[+sel.value]; if(!p) return;
+  if(p.asunto!=null) $('em_subject').value=p.asunto;
+  const body=$('em_body_rt');
+  if(body){ const firma=body.querySelector('[data-firma]'); const firmaHtml=firma?firma.outerHTML:'';
+    const cuerpo=/<[a-z][\s\S]*>/i.test(p.cuerpo||'')?(p.cuerpo||''):esc(p.cuerpo||'').replace(/\n/g,'<br>');
+    body.innerHTML=cuerpo+'<br><br>'+firmaHtml; }
+}
+async function guardarPlantilla(){
+  const nombre=prompt('Nombre para esta plantilla:'); if(!nombre||!nombre.trim()) return;
+  const { error }=await sb.from('plantillas_correo').insert({ nombre:nombre.trim(), asunto:$('em_subject').value.trim(), cuerpo:getHtml('em_body_rt'), creado_por:S.user.id });
+  if(error){ toast(error.message,'err'); return; }
+  toast('Plantilla guardada. Aparecerá la próxima vez que redactes.');
+}
+async function composeEmail(opts={}){
+  const idents = await identidades();
+  const def = idents.find(i=>i.es_predeterminada) || idents[0] || {};
+  _firmaActual = def.firma || '';
+  _adjuntos = [];
+  const { data:_pl } = await sb.from('plantillas_correo').select('*').order('nombre'); _plantillas=_pl||[];
+  const firmaHtml = _firmaActual ? esc(_firmaActual).replace(/\n/g,'<br>') : '';
+  const bodyHtml = (opts.body ? esc(opts.body).replace(/\n/g,'<br>') : '') + `<br><br><div data-firma="1">${firmaHtml}</div>`;
+  openModal(`<div class="p-6">
+    <h3 class="text-lg font-bold mb-4">Redactar correo</h3>
+    <div class="space-y-3">
+      <label class="block text-sm font-medium text-ink-700">Enviar desde
+        <select id="em_from" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+          ${idents.map(i=>`<option value="${i.id}" data-email="${esc(i.email)}" data-nombre="${esc(i.nombre)}" data-firma="${esc(i.firma||'')}" ${i.id===def.id?'selected':''}>${esc(i.nombre)} · ${esc(i.email)}</option>`).join('')}
+        </select></label>
+      ${field('Para (correo)','em_to',opts.to||'')}
+      <div class="grid grid-cols-2 gap-3">${field('CC (copia)','em_cc',opts.cc||'')}${field('CCO (copia oculta)','em_bcc',opts.bcc||'')}</div>
+      <label class="block text-sm font-medium text-ink-700">Plantilla
+        <select id="em_plantilla" onchange="aplicarPlantilla()" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+          <option value="">— Sin plantilla —</option>
+          ${(_plantillas||[]).map((p,i)=>`<option value="${i}">${esc(p.nombre)}</option>`).join('')}
+        </select></label>
+      ${field('Asunto','em_subject',opts.subject||'')}
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-sm font-medium text-ink-700">Mensaje</label>
+          <button type="button" onclick="previewToggle('em_body_rt','em_editorWrap','em_preview',this)" class="text-xs text-brand-700 font-medium">👁 Vista previa</button>
+        </div>
+        <div id="em_editorWrap">${richEditor('em_body_rt',bodyHtml,320,460)}</div>
+        <div id="em_preview" hidden class="border border-slate-200 rounded-lg bg-white p-6 mx-auto text-sm" style="max-width:640px"></div>
+      </div>
+      <div>
+        <button onclick="pickAdjuntos('em_adj')" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">📎 Adjuntar archivo</button>
+        <button onclick="guardarPlantilla()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 ml-2">💾 Guardar como plantilla</button>
+        <div id="em_adj" class="flex flex-wrap gap-2 mt-2"></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button onclick="closeModal()" class="flex-1 border border-slate-300 rounded-lg py-2 text-sm">Cancelar</button>
+      <button onclick="sendEmail('${opts.contacto_id||''}','${opts.distribuidor_id||''}')" class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Enviar</button>
+    </div></div>`);
+  setModalSize('max-w-3xl');
+  $('em_from').addEventListener('change', e=>{
+    const nueva = e.target.selectedOptions[0]?.dataset.firma || '';
+    const fb = $('em_body_rt')?.querySelector('[data-firma]');
+    if(fb) fb.innerHTML = nueva ? esc(nueva).replace(/\n/g,'<br>') : '';
+    _firmaActual = nueva;
+  });
+}
+async function sendEmail(contactoId, distId){
+  const sel=$('em_from'); const op=sel.selectedOptions[0];
+  const from_email=op?.dataset.email, from_name=op?.dataset.nombre;
+  const to=$('em_to').value.trim(), subject=$('em_subject').value.trim();
+  const cc=$('em_cc').value.trim(), bcc=$('em_bcc').value.trim();
+  const body_html=getHtml('em_body_rt');
+  const adjuntos=_adjuntos.slice();
+  if(!to){ toast('Falta el destinatario','err'); return; }
+  closeModal();
+  try{
+    const { data, error } = await sb.functions.invoke('swift-worker', { body:{ to, cc, bcc, from_email, from_name, subject, body_html, adjuntos } });
+    if(error){ let m=error.message; try{const j=await error.context.json(); if(j?.error)m=j.error;}catch(_){} throw new Error(m); }
+    if(data && data.ok===false) throw new Error(data.error||'Error');
+    await sb.from('comunicaciones').insert({ distribuidor_id:distId||null, contacto_id:contactoId||null, tipo:'email', direccion:'saliente', asunto:subject, contenido:body_html.replace(/<[^>]+>/g,' '), usuario_id:S.user.id });
+    await sb.from('envios_email').insert({ contacto_id:contactoId||null, distribuidor_id:distId||null, email_destino:to, asunto:subject, estado:'enviado', enviado_el:new Date().toISOString() });
+    toast('Correo enviado');
+  }catch(e){ toast('No se pudo enviar: '+(e?.message||e),'err'); }
+}
+async function replyCorreo(id){
+  const { data:c } = await sb.from('correos').select('de_email,asunto,contacto_id,distribuidor_id,cuerpo').eq('id',id).single();
+  composeEmail({
+    to:c.de_email,
+    subject:(/^re:/i.test(c.asunto||'')? c.asunto : 'Re: '+(c.asunto||'')),
+    contacto_id:c.contacto_id, distribuidor_id:c.distribuidor_id,
+    body:'\n\n----- Mensaje original -----\n'+(c.cuerpo||'')
+  });
+}
+
+// ============================================================
+//  HELPERS DE FORMULARIO
+// ============================================================
+function field(label,id,val=''){ return `<label class="block text-sm font-medium text-ink-700">${label}<input id="${id}" value="${esc(val)}" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"></label>`; }
+function textarea(label,id,val='',rows=3){ return `<label class="block text-sm font-medium text-ink-700">${label}<textarea id="${id}" rows="${rows}" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none">${esc(val)}</textarea></label>`; }
+
+// ============================================================
+//  ARRANQUE
+// ============================================================
+$('liPass').addEventListener('keydown',e=>{ if(e.key==='Enter') signIn(); });
+boot();
+</script>
+</body>
+</html>
